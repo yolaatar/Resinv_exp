@@ -120,6 +120,7 @@ def evaluate_image(
     gpu_id: int,
     primary_label: str = "axon",
     secondary_label: str = "myelin",
+    crop_size: int | None = None,
 ) -> pd.DataFrame:
 
     img_name = image_path.stem
@@ -134,6 +135,14 @@ def evaluate_image(
 
     img = load_gray(image_path)
     orig_h, orig_w = img.shape
+
+    if crop_size is not None and (orig_h > crop_size or orig_w > crop_size):
+        cy, cx = orig_h // 2, orig_w // 2
+        half = crop_size // 2
+        img = img[cy - half:cy + half, cx - half:cx + half]
+        orig_h, orig_w = img.shape
+        print(f"  Cropped to: {orig_w}×{orig_h} px (centered)")
+
     print(f"  Original: {orig_w}×{orig_h} px  @ {original_px} μm/px")
 
     # --- Determine valid pixel sizes (downsampling only, image large enough) ---
@@ -305,6 +314,9 @@ def main():
                         help="GPU ID to use (-1 for CPU, default: 0)")
     parser.add_argument("--min-size", type=int, default=MIN_IMAGE_SIZE,
                         help="Minimum image dimension in pixels (default: 128)")
+    parser.add_argument("--crop-size", type=int, default=None,
+                        help="Crop a centered square patch of this size (pixels) from each "
+                             "image before processing. Useful for very large images (default: no crop)")
     parser.add_argument("--label", type=str, default="axon",
                         help="Primary segmentation label to evaluate. Use 'uaxon' for the "
                              "unmyelinated TEM model, 'axon' for the generalist (default: axon)")
@@ -334,6 +346,7 @@ def main():
             gpu_id=args.gpu_id,
             primary_label=args.label,
             secondary_label=args.secondary_label,
+            crop_size=args.crop_size,
         )
         if not df.empty:
             all_dfs.append(df)
