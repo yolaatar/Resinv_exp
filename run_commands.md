@@ -1,5 +1,13 @@
 # Run commands
 
+## Test single image inference
+
+```bash
+IMG=~/duke/temp/yolaatar/resinv_exp/data/Corpus_Callosum/ALIC_CC_II_01_P202503101408.tif
+MODEL=~/axondeepseg/AxonDeepSeg/models/model_seg_unmyelinated_stanford_light
+axondeepseg -i $IMG -m $MODEL --gpu-id 0 --allow-large-images
+```
+
 ## Unmyelinated TEM model
 
 ```bash
