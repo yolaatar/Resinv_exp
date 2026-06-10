@@ -314,6 +314,9 @@ def main():
                         help="GPU ID to use (-1 for CPU, default: 0)")
     parser.add_argument("--min-size", type=int, default=MIN_IMAGE_SIZE,
                         help="Minimum image dimension in pixels (default: 128)")
+    parser.add_argument("--images", type=str, nargs="+", default=None,
+                        help="Process only these image stems, e.g. --images ALIC_CC_II_01_P202503101408 "
+                             "(default: all images found)")
     parser.add_argument("--crop-size", type=int, default=None,
                         help="Crop a centered square patch of this size (pixels) from each "
                              "image before processing. Useful for very large images (default: no crop)")
@@ -329,6 +332,9 @@ def main():
     if not images:
         print(f"No original TIF images found in {args.data_dir}")
         sys.exit(1)
+
+    if args.images:
+        images = [p for p in images if p.stem in args.images]
 
     print(f"Found {len(images)} image(s):")
     for p in images:
