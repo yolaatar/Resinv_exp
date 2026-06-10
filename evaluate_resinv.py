@@ -286,6 +286,7 @@ def evaluate_image(
 # ---------------------------------------------------------------------------
 
 def main():
+    global MIN_IMAGE_SIZE
     parser = argparse.ArgumentParser(description="Resolution invariance evaluation for ADS")
     parser.add_argument("--data-dir", type=Path, required=True,
                         help="Path to Corpus_Callosum dataset directory")
@@ -310,8 +311,6 @@ def main():
     parser.add_argument("--secondary-label", type=str, default="myelin",
                         help="Secondary label to evaluate alongside the primary (default: myelin)")
     args = parser.parse_args()
-
-    global MIN_IMAGE_SIZE
     MIN_IMAGE_SIZE = args.min_size
 
     images = find_original_images(args.data_dir)
