@@ -8,17 +8,16 @@ MODEL=~/axondeepseg/AxonDeepSeg/models/model_seg_unmyelinated_stanford_light
 axondeepseg -i $IMG -m $MODEL --gpu-id 0 --allow-large-images
 ```
 
+## Clean previous results
+
+```bash
+rm -rf ~/duke/temp/yolaatar/resinv_exp/results/
+```
+
 ## Unmyelinated TEM model
 
 ```bash
-CUDA_VISIBLE_DEVICES="0" python ~/resinv_exp/scripts/evaluate_resinv.py \
-    --data-dir ~/duke/temp/yolaatar/resinv_exp/data/Corpus_Callosum \
-    --model-path ~/axondeepseg/AxonDeepSeg/models/model_seg_unmyelinated_stanford_light \
-    --model-name unmyelinated_tem \
-    --label uaxon --secondary-label myelin \
-    --output-dir ~/duke/temp/yolaatar/resinv_exp/results \
-    --gpu-id 0 \
-    --crop-size 4096
+CUDA_VISIBLE_DEVICES="0" python ~/resinv_exp/scripts/evaluate_resinv.py --data-dir ~/duke/temp/yolaatar/resinv_exp/data/Corpus_Callosum --model-path ~/axondeepseg/AxonDeepSeg/models/model_seg_unmyelinated_stanford_light --model-name unmyelinated_tem --label uaxon --secondary-label myelin --output-dir ~/duke/temp/yolaatar/resinv_exp/results --gpu-id 0 --crop-size 4096 2>&1 | tee ~/output.log
 ```
 
 ## Generalist model
