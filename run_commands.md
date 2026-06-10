@@ -9,7 +9,8 @@ CUDA_VISIBLE_DEVICES="0" python ~/resinv_exp/scripts/evaluate_resinv.py \
     --model-name unmyelinated_tem \
     --label uaxon --secondary-label myelin \
     --output-dir ~/duke/temp/yolaatar/resinv_exp/results \
-    --gpu-id 0
+    --gpu-id 0 \
+    --crop-size 4096
 ```
 
 ## Generalist model
@@ -21,7 +22,8 @@ CUDA_VISIBLE_DEVICES="0" python ~/resinv_exp/scripts/evaluate_resinv.py \
     --model-name generalist \
     --label axon --secondary-label myelin \
     --output-dir ~/duke/temp/yolaatar/resinv_exp/results \
-    --gpu-id 0
+    --gpu-id 0 \
+    --crop-size 4096
 ```
 
 ## Retrieve results (on your Mac)
