@@ -36,8 +36,8 @@ from skimage.transform import resize
 # legacy nnUNet checkpoints. Must be set before any model loading occurs.
 try:
     import torch
-    import numpy.core.multiarray
-    torch.serialization.add_safe_globals([numpy.core.multiarray.scalar])
+    import numpy._core.multiarray
+    torch.serialization.add_safe_globals([numpy._core.multiarray.scalar])
 except Exception:
     pass
 
