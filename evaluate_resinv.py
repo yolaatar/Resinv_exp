@@ -32,14 +32,15 @@ import pandas as pd
 from PIL import Image
 from skimage.transform import resize
 
-# PyTorch nightly (2.6+) requires explicitly allowlisting numpy globals used in
-# legacy nnUNet checkpoints. Must be set before any model loading occurs.
-try:
-    import torch
-    import numpy._core.multiarray
-    torch.serialization.add_safe_globals([numpy._core.multiarray.scalar])
-except Exception:
-    pass
+# PyTorch 2.6+ changed torch.load default to weights_only=True, which breaks
+# legacy nnUNet checkpoints that contain numpy globals. Patch the default back
+# to False for trusted ADS model checkpoints.
+import torch as _torch
+_original_torch_load = _torch.load
+def _patched_torch_load(*args, **kwargs):
+    kwargs.setdefault("weights_only", False)
+    return _original_torch_load(*args, **kwargs)
+_torch.load = _patched_torch_load
 
 # Disable PIL decompression bomb check (original TEM images are ~230M pixels)
 Image.MAX_IMAGE_PIXELS = None
