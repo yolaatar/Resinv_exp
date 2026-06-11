@@ -88,13 +88,13 @@ def to_uint8(img: np.ndarray) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 def dice(a: np.ndarray, b: np.ndarray) -> float:
-    a_bin = a > 0
-    b_bin = b > 0
-    intersection = (a_bin & b_bin).sum()
-    total = a_bin.sum() + b_bin.sum()
-    if total == 0:
-        return 1.0
-    return float(2 * intersection / total)
+    import torch
+    from monai.metrics import compute_dice
+    a_t = torch.from_numpy((a > 0).astype(np.uint8)).unsqueeze(0).unsqueeze(0)
+    b_t = torch.from_numpy((b > 0).astype(np.uint8)).unsqueeze(0).unsqueeze(0)
+    score = compute_dice(a_t, b_t, include_background=True, ignore_empty=True)
+    val = float(score[0, 0])
+    return 1.0 if np.isnan(val) else val  # both empty = perfect agreement
 
 
 # ---------------------------------------------------------------------------

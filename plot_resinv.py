@@ -58,7 +58,7 @@ def plot_single_model(df: pd.DataFrame, model_name: str, out_path: Path):
         ]
 
     for i, (metric, interp_metric, title, col) in enumerate(panel_configs):
-        row = i // 2 if has_myelin else 0
+        row = i // 2 if has_secondary else 0
         ax = axes[row, col]
 
         plot_df = df[df[metric].notna()].copy()
