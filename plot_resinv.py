@@ -33,38 +33,40 @@ def _detect_labels(df: pd.DataFrame) -> list[str]:
     return active if active else labels
 
 
+# Meaningful tick positions in μm/px and their nm labels
+_XTICKS_UM = [0.0018625, 0.003, 0.00493, 0.007, 0.01, 0.016]
+_XTICK_LABELS = ["1.9 nm", "3 nm", "4.9 nm\n(train)", "7 nm", "10 nm", "16 nm"]
+
+
+def _set_x_ticks(ax):
+    ax.set_xticks(_XTICKS_UM)
+    ax.set_xticklabels(_XTICK_LABELS, fontsize=8)
+    ax.set_xlim(_XTICKS_UM[0] * 0.9, _XTICKS_UM[-1] * 1.1)
+
+
 def _add_training_line(ax):
-    ax.axvline(x=TRAINING_PX / ORIGINAL_PX, color="gray", linestyle=":", linewidth=1, alpha=0.8)
-    ax.text(TRAINING_PX / ORIGINAL_PX * 1.05, 0.03, "train res",
-            fontsize=7, color="gray", va="bottom")
+    ax.axvline(x=TRAINING_PX, color="gray", linestyle=":", linewidth=1, alpha=0.8)
 
 
 def plot_single_model(df: pd.DataFrame, model_name: str, out_path: Path):
     labels = _detect_labels(df)
-
     df = df.copy()
-    df["scale"] = ORIGINAL_PX / df["pixel_size_um"]
 
-    n_rows = len(labels)
-    fig, axes = plt.subplots(n_rows, 2, figsize=(13, 4.5 * n_rows), sharey="row")
-    if n_rows == 1:
-        axes = axes[np.newaxis, :]
+    n_cols = len(labels)
+    fig, axes = plt.subplots(1, n_cols, figsize=(5.5 * n_cols, 5), sharey=True)
+    if n_cols == 1:
+        axes = [axes]
 
     fig.suptitle(f"Resolution Invariance — {model_name}", fontsize=13)
 
-    panel_configs = []
-    for label in labels:
-        panel_configs.append((label, "native",  f"{label} — native referential"))
-        panel_configs.append((label, "resized", f"{label} — resized referential"))
+    panel_configs = [(label, "native", label) for label in labels]
 
     images = df["image"].unique()
     colors = plt.cm.tab10(np.linspace(0, 0.9, len(images)))
     img_color = {img: colors[i] for i, img in enumerate(images)}
 
     for i, (label, space, title) in enumerate(panel_configs):
-        row = i // 2
-        col = i % 2
-        ax = axes[row, col]
+        ax = axes[i]
         metric = f"dice_{label}_{space}"
         interp = f"dice_{label}_interp_baseline"
 
@@ -72,28 +74,30 @@ def plot_single_model(df: pd.DataFrame, model_name: str, out_path: Path):
             ax.set_visible(False)
             continue
 
+        x_col = "pixel_size_um"
+
         # Per-image lines (thin)
         for img in images:
-            sub = df[df["image"] == img].dropna(subset=[metric]).sort_values("scale")
-            ax.plot(sub["scale"], sub[metric], color=img_color[img],
+            sub = df[df["image"] == img].dropna(subset=[metric]).sort_values(x_col)
+            ax.plot(sub[x_col], sub[metric], color=img_color[img],
                     alpha=0.5, linewidth=1, marker="o", markersize=3, label=img)
 
         # Mean across images (bold)
-        avg = df.dropna(subset=[metric]).groupby("scale")[metric].mean().reset_index()
-        ax.plot(avg["scale"], avg[metric], color="black",
+        avg = df.dropna(subset=[metric]).groupby(x_col)[metric].mean().reset_index()
+        ax.plot(avg[x_col], avg[metric], color="black",
                 linewidth=2, marker="o", markersize=4, label="mean", zorder=5)
 
         # Interpolation baseline (dashed, mean only)
         if interp in df.columns and df[interp].notna().any():
-            avg_interp = df.dropna(subset=[interp]).groupby("scale")[interp].mean().reset_index()
-            ax.plot(avg_interp["scale"], avg_interp[interp], color="black",
+            avg_interp = df.dropna(subset=[interp]).groupby(x_col)[interp].mean().reset_index()
+            ax.plot(avg_interp[x_col], avg_interp[interp], color="black",
                     linewidth=1.5, linestyle="--", alpha=0.45, label="interp. baseline", zorder=4)
 
         _add_training_line(ax)
         ax.set_xscale("log")
-        ax.set_xlim(left=0.1)
+        _set_x_ticks(ax)
         ax.set_ylim(0, 1.05)
-        ax.set_xlabel("Scale factor (original px / target px)", fontsize=9)
+        ax.set_xlabel("Pixel size", fontsize=9)
         ax.set_ylabel("Dice", fontsize=9)
         ax.set_title(title, fontsize=10)
         ax.yaxis.set_major_locator(ticker.MultipleLocator(0.2))
@@ -136,22 +140,21 @@ def plot_comparison(model_dfs: list[tuple[str, pd.DataFrame]], out_path: Path):
         for (model_name, df), color in zip(model_dfs, colors):
             if metric not in df.columns:
                 continue
-            df = df.copy()
-            df["scale"] = ORIGINAL_PX / df["pixel_size_um"]
-            avg = df.dropna(subset=[metric]).groupby("scale")[metric].mean().reset_index()
-            ax.plot(avg["scale"], avg[metric], color=color, linewidth=2,
+            x_col = "pixel_size_um"
+            avg = df.dropna(subset=[metric]).groupby(x_col)[metric].mean().reset_index()
+            ax.plot(avg[x_col], avg[metric], color=color, linewidth=2,
                     marker="o", markersize=4, label=model_name)
 
             if interp in df.columns and df[interp].notna().any():
-                avg_i = df.dropna(subset=[interp]).groupby("scale")[interp].mean().reset_index()
-                ax.plot(avg_i["scale"], avg_i[interp], color=color,
+                avg_i = df.dropna(subset=[interp]).groupby(x_col)[interp].mean().reset_index()
+                ax.plot(avg_i[x_col], avg_i[interp], color=color,
                         linewidth=1.5, linestyle="--", alpha=0.4)
 
         _add_training_line(ax)
         ax.set_xscale("log")
-        ax.set_xlim(left=0.1)
+        _set_x_ticks(ax)
         ax.set_ylim(0, 1.05)
-        ax.set_xlabel("Scale factor", fontsize=9)
+        ax.set_xlabel("Pixel size", fontsize=9)
         ax.set_ylabel("Dice (mean across images)", fontsize=9)
         ax.set_title(f"{label} — native referential", fontsize=10)
         ax.yaxis.set_major_locator(ticker.MultipleLocator(0.2))

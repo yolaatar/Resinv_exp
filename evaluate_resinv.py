@@ -23,6 +23,7 @@ Usage:
 """
 
 import argparse
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -102,13 +103,13 @@ def dice(a: np.ndarray, b: np.ndarray) -> float:
 # ---------------------------------------------------------------------------
 
 def find_original_images(data_dir: Path) -> list[Path]:
-    """Find original TIF images (not pre-resampled versions, not masks)."""
-    all_tifs = list(data_dir.rglob("*.tif"))
+    """Find original images (TIF or PNG), excluding masks and pre-resampled versions."""
+    candidates = list(data_dir.rglob("*.tif")) + list(data_dir.rglob("*.png"))
     return sorted(
-        p for p in all_tifs
-        if "px0.00493um" not in p.name
+        p for p in candidates
+        if "_seg-" not in p.name
         and "patches" not in str(p)
-        and "_seg-" not in p.name
+        and not re.search(r"_px[\d.]+um", p.name)
     )
 
 
@@ -338,9 +339,12 @@ def main():
     args = parser.parse_args()
     MIN_IMAGE_SIZE = args.min_size
 
+    # Always include the original resolution as a tested pixel size
+    pixel_sizes = sorted(set(args.pixel_sizes) | {args.original_px})
+
     images = find_original_images(args.data_dir)
     if not images:
-        print(f"No original TIF images found in {args.data_dir}")
+        print(f"No original images found in {args.data_dir}")
         sys.exit(1)
 
     if args.images:
@@ -357,7 +361,7 @@ def main():
             model_path=args.model_path,
             model_name=args.model_name,
             original_px=args.original_px,
-            pixel_sizes=args.pixel_sizes,
+            pixel_sizes=pixel_sizes,
             output_dir=args.output_dir,
             gpu_id=args.gpu_id,
             primary_label=args.label,
