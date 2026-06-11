@@ -21,6 +21,10 @@ from PIL import Image
 Image.MAX_IMAGE_PIXELS = None
 
 TRAINING_PX = 0.00493
+ORIGINAL_PX = 0.0018625
+# Labels to ignore: nuclei tends to cover 80%+ of the image (catch-all class),
+# process is essentially empty in corpus callosum data.
+SKIP_LABELS = {"nuclei", "process", "axonmyelin"}
 
 
 def load_gray(path: Path) -> np.ndarray:
@@ -46,18 +50,62 @@ def parse_px(filename: str) -> float | None:
     return float(m.group(1)) if m else None
 
 
-def detect_labels(pred_dir: Path) -> tuple[str, str | None]:
-    """Infer primary/secondary labels from existing prediction filenames."""
-    labels = sorted({
+def detect_active_labels(pred_dir: Path, ref_px: float) -> list[str]:
+    """
+    Return labels that have non-trivial predictions at the reference resolution.
+    Skips labels in SKIP_LABELS and those covering >50% of the image (catch-all classes).
+    """
+    all_labels = sorted({
         re.search(r"_seg-(.+)\.png", p.name).group(1)
         for p in pred_dir.glob("*_seg-*.png")
         if re.search(r"_seg-(.+)\.png", p.name)
     })
-    # Prefer uaxon > axon as primary (unmyelinated model), myelin as secondary
-    primary_order = ["uaxon", "axon"] + [l for l in labels if l not in ("uaxon", "axon", "myelin")]
-    primary = next((l for l in primary_order if l in labels), labels[0] if labels else "axon")
-    secondary = "myelin" if "myelin" in labels else None
-    return primary, secondary
+    ref_tag = f"_px{ref_px:.7g}um_"
+    active = []
+    for label in all_labels:
+        if label in SKIP_LABELS:
+            continue
+        candidates = list(pred_dir.glob(f"*{ref_tag}seg-{label}.png"))
+        if not candidates:
+            # Try approximate match
+            candidates = [p for p in pred_dir.glob(f"*_seg-{label}.png")
+                          if abs(parse_px(p.name) - ref_px) < 1e-7]
+        if not candidates:
+            continue
+        arr = load_gray(candidates[0])
+        coverage = (arr > 0).mean()
+        if coverage > 0 and coverage < 0.5:
+            active.append(label)
+    return active
+
+
+def compute_label_metrics(pred_dir: Path, label: str, ref_mask: np.ndarray,
+                           px_files: dict[float, Path], ref_px: float) -> dict:
+    """Compute native, resized, and interp Dice for one label across all pixel sizes."""
+    ref_h, ref_w = ref_mask.shape
+    results = {}
+    for px, primary_path in sorted(px_files.items()):
+        pred_path = pred_dir / primary_path.name.replace(
+            f"_seg-{list(px_files.values())[0].name.split('_seg-')[1]}",
+            f"_seg-{label}.png"
+        )
+        # Rebuild path from scratch to avoid string replace issues
+        stem = re.sub(r"_seg-.+\.png$", f"_seg-{label}.png", primary_path.name)
+        pred_path = pred_dir / stem
+        if not pred_path.exists():
+            continue
+
+        pred = load_gray(pred_path)
+        pred_h, pred_w = pred.shape
+
+        native = dice_monai(resample_mask(pred, (ref_h, ref_w)), ref_mask)
+        resized = dice_monai(pred, resample_mask(ref_mask, (pred_h, pred_w)))
+        interp = dice_monai(
+            resample_mask(resample_mask(ref_mask, (pred_h, pred_w)), (ref_h, ref_w)),
+            ref_mask
+        )
+        results[px] = (native, resized, interp)
+    return results
 
 
 def recompute_image(img_dir: Path, model_name: str) -> pd.DataFrame:
@@ -66,86 +114,72 @@ def recompute_image(img_dir: Path, model_name: str) -> pd.DataFrame:
     if not pred_dir.exists():
         return pd.DataFrame()
 
-    primary, secondary = detect_labels(pred_dir)
-
-    # Collect all pixel sizes present
-    px_files: dict[float, Path] = {}
-    for p in pred_dir.glob(f"*_seg-{primary}.png"):
-        px = parse_px(p.name)
-        if px is not None:
-            px_files[px] = p
-
-    if not px_files:
+    # Find all pixel sizes using any label as anchor
+    all_pred_files = list(pred_dir.glob("*_seg-*.png"))
+    px_set = sorted({parse_px(p.name) for p in all_pred_files if parse_px(p.name)})
+    if not px_set:
         return pd.DataFrame()
 
-    # Reference = closest to training resolution
-    ref_px = min(px_files, key=lambda x: abs(x - TRAINING_PX))
-    ref_primary = load_gray(px_files[ref_px])
-    ref_h, ref_w = ref_primary.shape
+    ref_px = min(px_set, key=lambda x: abs(x - TRAINING_PX))
+    active_labels = detect_active_labels(pred_dir, ref_px)
 
-    ref_secondary = None
-    if secondary:
-        ref_sec_path = pred_dir / px_files[ref_px].name.replace(f"_seg-{primary}.png", f"_seg-{secondary}.png")
-        if ref_sec_path.exists():
-            ref_secondary = load_gray(ref_sec_path)
+    if not active_labels:
+        print(f"  No active labels found, skipping.")
+        return pd.DataFrame()
+
+    print(f"  Labels: {active_labels}")
+
+    # Load reference masks for each label
+    ref_masks = {}
+    for label in active_labels:
+        candidates = [p for p in pred_dir.glob(f"*_seg-{label}.png")
+                      if abs(parse_px(p.name) - ref_px) < 1e-7]
+        if candidates:
+            ref_masks[label] = load_gray(candidates[0])
+
+    ref_h, ref_w = next(iter(ref_masks.values())).shape
 
     rows = []
-    for px in sorted(px_files):
-        pred_primary = load_gray(px_files[px])
-        pred_h, pred_w = pred_primary.shape
+    for px in px_set:
+        # Get image dimensions from any existing prediction
+        sample = next((p for p in pred_dir.glob(f"*_seg-*.png")
+                       if abs(parse_px(p.name) - px) < 1e-7), None)
+        if sample is None:
+            continue
+        pred_h, pred_w = load_gray(sample).shape
 
-        pred_sec_path = pred_dir / px_files[px].name.replace(f"_seg-{primary}.png", f"_seg-{secondary}.png")
-        pred_secondary = load_gray(pred_sec_path) if secondary and pred_sec_path.exists() else None
-
-        # Native space
-        pred_primary_native = resample_mask(pred_primary, (ref_h, ref_w))
-        dice_primary_native = dice_monai(pred_primary_native, ref_primary)
-
-        dice_secondary_native = None
-        if pred_secondary is not None and ref_secondary is not None:
-            pred_sec_native = resample_mask(pred_secondary, (ref_h, ref_w))
-            dice_secondary_native = dice_monai(pred_sec_native, ref_secondary)
-
-        # Resized space
-        ref_primary_ds = resample_mask(ref_primary, (pred_h, pred_w))
-        dice_primary_resized = dice_monai(pred_primary, ref_primary_ds)
-
-        dice_secondary_resized = None
-        if pred_secondary is not None and ref_secondary is not None:
-            ref_sec_ds = resample_mask(ref_secondary, (pred_h, pred_w))
-            dice_secondary_resized = dice_monai(pred_secondary, ref_sec_ds)
-
-        # Interpolation baseline
-        ref_primary_roundtrip = resample_mask(
-            resample_mask(ref_primary, (pred_h, pred_w)), (ref_h, ref_w)
-        )
-        dice_primary_interp = dice_monai(ref_primary_roundtrip, ref_primary)
-
-        dice_secondary_interp = None
-        if ref_secondary is not None:
-            ref_sec_roundtrip = resample_mask(
-                resample_mask(ref_secondary, (pred_h, pred_w)), (ref_h, ref_w)
-            )
-            dice_secondary_interp = dice_monai(ref_sec_roundtrip, ref_secondary)
-
-        rows.append({
+        row = {
             "image": img_name,
             "model": model_name,
             "pixel_size_um": px,
-            "scale_factor": round(0.0018625 / px, 6),
+            "scale_factor": round(ORIGINAL_PX / px, 6),
             "image_width": pred_w,
             "image_height": pred_h,
             "reference_px": ref_px,
-            f"dice_{primary}_native": dice_primary_native,
-            f"dice_{secondary}_native": dice_secondary_native,
-            f"dice_{primary}_resized": dice_primary_resized,
-            f"dice_{secondary}_resized": dice_secondary_resized,
-            f"dice_{primary}_interp_baseline": dice_primary_interp,
-            f"dice_{secondary}_interp_baseline": dice_secondary_interp,
-        })
+        }
 
-        print(f"  {px} μm/px — {primary} native: {dice_primary_native:.3f}, "
-              f"resized: {dice_primary_resized:.3f}, interp: {dice_primary_interp:.3f}")
+        for label in active_labels:
+            if label not in ref_masks:
+                continue
+            ref_mask = ref_masks[label]
+            pred_path = next((p for p in pred_dir.glob(f"*_seg-{label}.png")
+                              if abs(parse_px(p.name) - px) < 1e-7), None)
+            if pred_path is None:
+                continue
+            pred = load_gray(pred_path)
+
+            row[f"dice_{label}_native"] = dice_monai(resample_mask(pred, (ref_h, ref_w)), ref_mask)
+            row[f"dice_{label}_resized"] = dice_monai(pred, resample_mask(ref_mask, (pred_h, pred_w)))
+            row[f"dice_{label}_interp_baseline"] = dice_monai(
+                resample_mask(resample_mask(ref_mask, (pred_h, pred_w)), (ref_h, ref_w)), ref_mask
+            )
+
+        rows.append(row)
+        label_summary = ", ".join(
+            f"{l} native: {row.get(f'dice_{l}_native', float('nan')):.3f}"
+            for l in active_labels
+        )
+        print(f"  {px} μm/px — {label_summary}")
 
     df = pd.DataFrame(rows)
     df.to_csv(img_dir / "metrics.csv", index=False)

@@ -1,86 +1,109 @@
 #!/usr/bin/env python3
 """
 Plot resolution invariance results.
-Can plot a single model or compare multiple models.
 
 Usage:
-    # After running evaluate_resinv.py for one or more models:
     python plot_resinv.py --results-dir ./results
-
-    # Only specific models:
-    python plot_resinv.py --results-dir ./results --models cambridge_unmyelinated generalist
+    python plot_resinv.py --results-dir ./results --models unmyelinated_tem
 """
 
 import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import numpy as np
 import pandas as pd
-import seaborn as sns
 
 
 TRAINING_PX = 0.00493
+ORIGINAL_PX = 0.0018625
 
 
-def _detect_labels(df: pd.DataFrame) -> tuple[str, str | None]:
-    """Infer primary and secondary label names from CSV column names."""
-    native_cols = [c for c in df.columns if c.endswith("_native") and c.startswith("dice_")]
+def _detect_labels(df: pd.DataFrame) -> list[str]:
+    """Return all labels that have at least some non-trivial Dice data."""
+    native_cols = [c for c in df.columns if c.startswith("dice_") and c.endswith("_native")]
     labels = [c.removeprefix("dice_").removesuffix("_native") for c in native_cols]
-    primary = labels[0] if labels else "axon"
-    secondary = labels[1] if len(labels) > 1 and df[f"dice_{labels[1]}_native"].notna().any() else None
-    return primary, secondary
+    # Keep only labels where not all values are 0 or 1 (i.e., actually varying)
+    active = []
+    for l in labels:
+        col = df[f"dice_{l}_native"].dropna()
+        if col.nunique() > 1:
+            active.append(l)
+    return active if active else labels
+
+
+def _add_training_line(ax):
+    ax.axvline(x=TRAINING_PX / ORIGINAL_PX, color="gray", linestyle=":", linewidth=1, alpha=0.8)
+    ax.text(TRAINING_PX / ORIGINAL_PX * 1.05, 0.03, "train res",
+            fontsize=7, color="gray", va="bottom")
 
 
 def plot_single_model(df: pd.DataFrame, model_name: str, out_path: Path):
-    """Per-model plot: native and resized Dice across resolutions, per image."""
-    primary, secondary = _detect_labels(df)
-    has_secondary = secondary is not None
-    n_rows = 2 if has_secondary else 1
-    fig, axes = plt.subplots(n_rows, 2, figsize=(14, 5 * n_rows))
+    labels = _detect_labels(df)
+
+    df = df.copy()
+    df["scale"] = ORIGINAL_PX / df["pixel_size_um"]
+
+    n_rows = len(labels)
+    fig, axes = plt.subplots(n_rows, 2, figsize=(13, 4.5 * n_rows), sharey="row")
     if n_rows == 1:
         axes = axes[np.newaxis, :]
 
-    fig.suptitle(f"Resolution Invariance — {model_name}", fontsize=14, y=1.01)
+    fig.suptitle(f"Resolution Invariance — {model_name}", fontsize=13)
 
-    panel_configs = [
-        (f"dice_{primary}_native", f"dice_{primary}_interp_baseline",
-         f"{primary} — Native space (vs reference at {TRAINING_PX} μm/px)", 0),
-        (f"dice_{primary}_resized", None,
-         f"{primary} — Resized space (vs reference downsampled to same res)", 1),
-    ]
-    if has_secondary:
-        panel_configs += [
-            (f"dice_{secondary}_native", f"dice_{secondary}_interp_baseline",
-             f"{secondary} — Native space", 0),
-            (f"dice_{secondary}_resized", None,
-             f"{secondary} — Resized space", 1),
-        ]
+    panel_configs = []
+    for label in labels:
+        panel_configs.append((label, "native",  f"{label} — native referential"))
+        panel_configs.append((label, "resized", f"{label} — resized referential"))
 
-    for i, (metric, interp_metric, title, col) in enumerate(panel_configs):
-        row = i // 2 if has_secondary else 0
+    images = df["image"].unique()
+    colors = plt.cm.tab10(np.linspace(0, 0.9, len(images)))
+    img_color = {img: colors[i] for i, img in enumerate(images)}
+
+    for i, (label, space, title) in enumerate(panel_configs):
+        row = i // 2
+        col = i % 2
         ax = axes[row, col]
+        metric = f"dice_{label}_{space}"
+        interp = f"dice_{label}_interp_baseline"
 
-        plot_df = df[df[metric].notna()].copy()
-        sns.lineplot(data=plot_df, x="pixel_size_um", y=metric,
-                     hue="image", marker="o", ax=ax)
+        if metric not in df.columns:
+            ax.set_visible(False)
+            continue
 
-        if interp_metric and df[interp_metric].notna().any():
-            interp_df = df[df[interp_metric].notna()].copy()
-            avg_interp = interp_df.groupby("pixel_size_um")[interp_metric].mean().reset_index()
-            ax.plot(avg_interp["pixel_size_um"], avg_interp[interp_metric],
-                    "k--", alpha=0.5, marker="x", label="Interp. baseline (avg)")
-            ax.legend(fontsize=8)
+        # Per-image lines (thin)
+        for img in images:
+            sub = df[df["image"] == img].dropna(subset=[metric]).sort_values("scale")
+            ax.plot(sub["scale"], sub[metric], color=img_color[img],
+                    alpha=0.5, linewidth=1, marker="o", markersize=3, label=img)
 
-        ax.axvline(x=TRAINING_PX, color="gray", linestyle=":", alpha=0.7)
-        ax.text(TRAINING_PX * 1.05, 0.52, "train res", fontsize=8,
-                color="gray", va="bottom")
+        # Mean across images (bold)
+        avg = df.dropna(subset=[metric]).groupby("scale")[metric].mean().reset_index()
+        ax.plot(avg["scale"], avg[metric], color="black",
+                linewidth=2, marker="o", markersize=4, label="mean", zorder=5)
+
+        # Interpolation baseline (dashed, mean only)
+        if interp in df.columns and df[interp].notna().any():
+            avg_interp = df.dropna(subset=[interp]).groupby("scale")[interp].mean().reset_index()
+            ax.plot(avg_interp["scale"], avg_interp[interp], color="black",
+                    linewidth=1.5, linestyle="--", alpha=0.45, label="interp. baseline", zorder=4)
+
+        _add_training_line(ax)
         ax.set_xscale("log")
-        ax.set_xlabel("Pixel size (μm/px)")
-        ax.set_ylabel("Dice score")
+        ax.set_xlim(left=0.1)
+        ax.set_ylim(0, 1.05)
+        ax.set_xlabel("Scale factor (original px / target px)", fontsize=9)
+        ax.set_ylabel("Dice", fontsize=9)
         ax.set_title(title, fontsize=10)
-        ax.set_ylim(0.5, 1.05)
-        ax.grid(True, alpha=0.3)
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(0.2))
+        ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.1))
+        ax.grid(True, which="major", alpha=0.3)
+        ax.grid(True, which="minor", alpha=0.1)
+
+        if i == 0:
+            handles, labels_leg = ax.get_legend_handles_labels()
+            ax.legend(handles, labels_leg, fontsize=7, loc="lower right")
 
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight")
@@ -89,46 +112,51 @@ def plot_single_model(df: pd.DataFrame, model_name: str, out_path: Path):
 
 
 def plot_comparison(model_dfs: list[tuple[str, pd.DataFrame]], out_path: Path):
-    """Compare multiple models: average Dice per model across images."""
-    combined = pd.concat(
-        [df.assign(model=name) for name, df in model_dfs],
-        ignore_index=True,
-    )
-    # Collect all dice_*_native / dice_*_resized columns present across all models
-    dice_cols = [c for c in combined.columns
-                 if c.startswith("dice_") and (c.endswith("_native") or c.endswith("_resized"))]
-    avg = combined.groupby(["model", "pixel_size_um"])[dice_cols].mean().reset_index()
+    """Compare models: mean Dice per model, native referential only."""
+    # Collect all label/space combos present
+    all_labels = set()
+    for _, df in model_dfs:
+        for l in _detect_labels(df):
+            all_labels.add(l)
 
-    configs = []
-    seen_labels = []
-    for col in dice_cols:
-        label = col.removeprefix("dice_").removesuffix("_native").removesuffix("_resized")
-        if label not in seen_labels:
-            seen_labels.append(label)
-    for label in seen_labels:
-        configs.append((f"dice_{label}_native", f"{label} — Native space"))
-        configs.append((f"dice_{label}_resized", f"{label} — Resized space"))
-
-    # Only keep configs where column actually exists in avg
-    configs = [(col, title) for col, title in configs if col in avg.columns]
-
+    configs = [(l, "native") for l in sorted(all_labels)]
     n_cols = len(configs)
-    fig, axes = plt.subplots(1, n_cols, figsize=(5 * n_cols, 5))
+
+    fig, axes = plt.subplots(1, n_cols, figsize=(6 * n_cols, 5), sharey=True)
     if n_cols == 1:
         axes = [axes]
-    fig.suptitle("Resolution Invariance — Model Comparison", fontsize=14)
+    fig.suptitle("Resolution Invariance — Model Comparison (native referential)", fontsize=13)
 
-    for ax, (metric, title) in zip(axes, configs):
-        plot_df = avg[avg[metric].notna()].copy()
-        sns.lineplot(data=plot_df, x="pixel_size_um", y=metric,
-                     hue="model", marker="o", ax=ax)
-        ax.axvline(x=TRAINING_PX, color="gray", linestyle=":", alpha=0.7)
+    colors = plt.cm.Set1(np.linspace(0, 0.7, len(model_dfs)))
+
+    for ax, (label, space) in zip(axes, configs):
+        metric = f"dice_{label}_{space}"
+        interp = f"dice_{label}_interp_baseline"
+
+        for (model_name, df), color in zip(model_dfs, colors):
+            if metric not in df.columns:
+                continue
+            df = df.copy()
+            df["scale"] = ORIGINAL_PX / df["pixel_size_um"]
+            avg = df.dropna(subset=[metric]).groupby("scale")[metric].mean().reset_index()
+            ax.plot(avg["scale"], avg[metric], color=color, linewidth=2,
+                    marker="o", markersize=4, label=model_name)
+
+            if interp in df.columns and df[interp].notna().any():
+                avg_i = df.dropna(subset=[interp]).groupby("scale")[interp].mean().reset_index()
+                ax.plot(avg_i["scale"], avg_i[interp], color=color,
+                        linewidth=1.5, linestyle="--", alpha=0.4)
+
+        _add_training_line(ax)
         ax.set_xscale("log")
-        ax.set_xlabel("Pixel size (μm/px)")
-        ax.set_ylabel("Dice score (avg across images)")
-        ax.set_title(title, fontsize=10)
-        ax.set_ylim(0.5, 1.05)
-        ax.grid(True, alpha=0.3)
+        ax.set_xlim(left=0.1)
+        ax.set_ylim(0, 1.05)
+        ax.set_xlabel("Scale factor", fontsize=9)
+        ax.set_ylabel("Dice (mean across images)", fontsize=9)
+        ax.set_title(f"{label} — native referential", fontsize=10)
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(0.2))
+        ax.grid(True, which="major", alpha=0.3)
+        ax.legend(fontsize=9)
 
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight")
@@ -137,11 +165,9 @@ def plot_comparison(model_dfs: list[tuple[str, pd.DataFrame]], out_path: Path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Plot resolution invariance results")
-    parser.add_argument("--results-dir", type=Path, default=Path("./results"),
-                        help="Root results directory (default: ./results)")
-    parser.add_argument("--models", type=str, nargs="*",
-                        help="Model names to include (default: all found)")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--results-dir", type=Path, default=Path("./results"))
+    parser.add_argument("--models", type=str, nargs="*")
     args = parser.parse_args()
 
     model_dfs = []
@@ -154,7 +180,7 @@ def main():
         plot_single_model(df, model_name, csv_path.parent / "results.png")
 
     if not model_dfs:
-        print(f"No results.csv files found under {args.results_dir}")
+        print(f"No results.csv found under {args.results_dir}")
         return
 
     if len(model_dfs) > 1:
