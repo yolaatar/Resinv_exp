@@ -122,6 +122,17 @@ python plot_resinv.py --results-dir ./results
 rsync -avz /Users/yolaatar/Developer/ADS/resinv/training/ yolaa@tassan.neuro.polymtl.ca:~/resinv_exp/scripts/training/
 ```
 
+### Fix nnUNet 2.2.1 + PyTorch 2.10 incompatibility (one-time, on tassan)
+
+```bash
+sed -i 's/super().__init__(optimizer, current_step if current_step is not None else -1, False)/super().__init__(optimizer, current_step if current_step is not None else -1)/' ~/resinv_exp/venv_resinv/lib/python3.12/site-packages/nnunetv2/training/lr_scheduler/polylr.py
+```
+
+Verify:
+```bash
+grep "super().__init__" ~/resinv_exp/venv_resinv/lib/python3.12/site-packages/nnunetv2/training/lr_scheduler/polylr.py
+```
+
 ### Model 1 — Witness (standard nnUNet, single resolution)
 
 ```bash
