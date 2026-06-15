@@ -16,9 +16,11 @@ DATA_DIR="${HOME}/duke/temp/yolaatar/resinv_exp/data/TEM1"
 BASE_DIR="${HOME}/duke/temp/yolaatar/nnunet_resinv"
 SCRIPTS_DIR="${HOME}/resinv_exp/scripts/training"
 
+# Raw data stays on duke (source only, read once during preprocessing)
+# Preprocessed and results go to local /tmp to avoid network I/O bottleneck during training
 export nnUNet_raw="${BASE_DIR}/nnUNet_raw"
-export nnUNet_preprocessed="${BASE_DIR}/nnUNet_preprocessed"
-export nnUNet_results="${BASE_DIR}/nnUNet_results"
+export nnUNet_preprocessed="/tmp/yolaatar/nnunet_preprocessed"
+export nnUNet_results="${BASE_DIR}/nnUNet_results"  # duke: checkpoints written infrequently, network latency ok
 
 mkdir -p "${nnUNet_raw}" "${nnUNet_preprocessed}" "${nnUNet_results}"
 

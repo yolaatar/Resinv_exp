@@ -140,4 +140,10 @@ bash ~/resinv_exp/scripts/training/train_witness.sh
 ```
 
 Logs: `~/output_witness.log`
-Checkpoint: `~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset001_TEM_witness/nnUNetTrainer__nnUNetPlans__2d/fold_0/checkpoint_best.pth`
+Checkpoint: `/tmp/yolaatar/nnunet_results/Dataset001_TEM_witness/nnUNetTrainer__nnUNetPlans__2d/fold_0/checkpoint_best.pth`
+
+### Save witness model results from /tmp to duke (before session ends)
+
+```bash
+rsync -avz /tmp/yolaatar/nnunet_results/ ~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/
+```
