@@ -14,7 +14,7 @@ set -e
 DATASET_ID=1
 DATA_DIR="${HOME}/duke/temp/yolaatar/resinv_exp/data/TEM1"
 BASE_DIR="${HOME}/duke/temp/yolaatar/nnunet_resinv"
-SCRIPTS_DIR="${HOME}/resinv_exp/scripts"
+SCRIPTS_DIR="${HOME}/resinv_exp/scripts/training"
 
 export nnUNet_raw="${BASE_DIR}/nnUNet_raw"
 export nnUNet_preprocessed="${BASE_DIR}/nnUNet_preprocessed"
@@ -47,7 +47,7 @@ nnUNetv2_plan_and_preprocess \
 # Step 3: Train (fold 0, 2D)
 echo ""
 echo "=== Step 3: Training (fold 0, 2D) ==="
-CUDA_VISIBLE_DEVICES=0 nnUNetv2_train \
+CUDA_VISIBLE_DEVICES=1 nnUNetv2_train \
     ${DATASET_ID} \
     2d \
     0 \
