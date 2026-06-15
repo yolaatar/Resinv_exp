@@ -48,22 +48,44 @@ def _add_training_line(ax):
     ax.axvline(x=TRAINING_PX, color="gray", linestyle=":", linewidth=1, alpha=0.8)
 
 
-def plot_single_model(df: pd.DataFrame, model_name: str, out_path: Path):
+def plot_single_model(
+    df: pd.DataFrame,
+    model_name: str,
+    out_path: Path,
+    sample_n: int | None = None,
+    exclude_labels: list[str] | None = None,
+    show_resized: bool = False,
+):
     labels = _detect_labels(df)
+    if exclude_labels:
+        labels = [l for l in labels if l not in exclude_labels]
     df = df.copy()
 
-    n_cols = len(labels)
+    # Build panel list: for each label, native first; if show_resized, add resized alongside
+    if show_resized:
+        panel_configs = []
+        for label in labels:
+            panel_configs.append((label, "native",   f"{label}\n(native)"))
+            panel_configs.append((label, "resized",  f"{label}\n(resized)"))
+    else:
+        panel_configs = [(label, "native", label) for label in labels]
+
+    n_cols = len(panel_configs)
     fig, axes = plt.subplots(1, n_cols, figsize=(5.5 * n_cols, 5), sharey=True)
     if n_cols == 1:
         axes = [axes]
 
-    fig.suptitle(f"Resolution Invariance — {model_name}", fontsize=13)
+    fig.suptitle(f"Resolution Invariance: {model_name}", fontsize=13)
 
-    panel_configs = [(label, "native", label) for label in labels]
-
-    images = df["image"].unique()
-    colors = plt.cm.tab10(np.linspace(0, 0.9, len(images)))
-    img_color = {img: colors[i] for i, img in enumerate(images)}
+    all_images = df["image"].unique()
+    # Subsample for display; mean is always over all images
+    if sample_n is not None and sample_n < len(all_images):
+        idx = np.round(np.linspace(0, len(all_images) - 1, sample_n)).astype(int)
+        display_images = all_images[idx]
+    else:
+        display_images = all_images
+    colors = plt.cm.tab10(np.linspace(0, 0.9, len(display_images)))
+    img_color = {img: colors[i] for i, img in enumerate(display_images)}
 
     for i, (label, space, title) in enumerate(panel_configs):
         ax = axes[i]
@@ -76,16 +98,24 @@ def plot_single_model(df: pd.DataFrame, model_name: str, out_path: Path):
 
         x_col = "pixel_size_um"
 
-        # Per-image lines (thin)
-        for img in images:
+        # Per-image lines (thin, sampled subset only)
+        for img in display_images:
             sub = df[df["image"] == img].dropna(subset=[metric]).sort_values(x_col)
             ax.plot(sub[x_col], sub[metric], color=img_color[img],
-                    alpha=0.5, linewidth=1, marker="o", markersize=3, label=img)
+                    alpha=0.5, linewidth=0.9, marker="o", markersize=2)
 
-        # Mean across images (bold)
+        # Mean across ALL images (bold)
         avg = df.dropna(subset=[metric]).groupby(x_col)[metric].mean().reset_index()
         ax.plot(avg[x_col], avg[metric], color="black",
-                linewidth=2, marker="o", markersize=4, label="mean", zorder=5)
+                linewidth=2, marker="o", markersize=4, label=f"mean (n={len(all_images)})", zorder=5)
+
+        # Highlight peak of the mean
+        peak_idx = avg[metric].idxmax()
+        peak_x, peak_y = avg.loc[peak_idx, x_col], avg.loc[peak_idx, metric]
+        ax.plot(peak_x, peak_y, marker="*", color="crimson", markersize=12, zorder=6)
+        ax.annotate(f"{peak_y:.2f}", xy=(peak_x, peak_y),
+                    xytext=(0, 8), textcoords="offset points",
+                    ha="center", fontsize=8, color="crimson", fontweight="bold")
 
         # Interpolation baseline (dashed, mean only)
         if interp in df.columns and df[interp].notna().any():
@@ -104,10 +134,7 @@ def plot_single_model(df: pd.DataFrame, model_name: str, out_path: Path):
         ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.1))
         ax.grid(True, which="major", alpha=0.3)
         ax.grid(True, which="minor", alpha=0.1)
-
-        if i == 0:
-            handles, labels_leg = ax.get_legend_handles_labels()
-            ax.legend(handles, labels_leg, fontsize=7, loc="lower right")
+        ax.legend(fontsize=8, loc="lower right")
 
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight")
@@ -129,7 +156,7 @@ def plot_comparison(model_dfs: list[tuple[str, pd.DataFrame]], out_path: Path):
     fig, axes = plt.subplots(1, n_cols, figsize=(6 * n_cols, 5), sharey=True)
     if n_cols == 1:
         axes = [axes]
-    fig.suptitle("Resolution Invariance — Model Comparison (native referential)", fontsize=13)
+    fig.suptitle("Resolution Invariance: Model Comparison (native referential)", fontsize=13)
 
     colors = plt.cm.Set1(np.linspace(0, 0.7, len(model_dfs)))
 
@@ -156,7 +183,7 @@ def plot_comparison(model_dfs: list[tuple[str, pd.DataFrame]], out_path: Path):
         ax.set_ylim(0, 1.05)
         ax.set_xlabel("Pixel size", fontsize=9)
         ax.set_ylabel("Dice (mean across images)", fontsize=9)
-        ax.set_title(f"{label} — native referential", fontsize=10)
+        ax.set_title(f"{label} (native referential)", fontsize=10)
         ax.yaxis.set_major_locator(ticker.MultipleLocator(0.2))
         ax.grid(True, which="major", alpha=0.3)
         ax.legend(fontsize=9)
@@ -171,6 +198,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--results-dir", type=Path, default=Path("./results"))
     parser.add_argument("--models", type=str, nargs="*")
+    parser.add_argument("--sample-n", type=int, default=None,
+                        help="Show only N evenly-sampled per-image lines (mean is always over all images)")
+    parser.add_argument("--exclude-labels", type=str, nargs="*", default=None,
+                        help="Labels to hide from the plot, e.g. --exclude-labels uaxon")
+    parser.add_argument("--show-resized", action="store_true",
+                        help="Show native and resized panels side by side for each label")
+    parser.add_argument("--out-suffix", type=str, default="",
+                        help="Suffix appended to output filename, e.g. '_all' -> results_all.png")
     args = parser.parse_args()
 
     model_dfs = []
@@ -180,7 +215,13 @@ def main():
             continue
         df = pd.read_csv(csv_path)
         model_dfs.append((model_name, df))
-        plot_single_model(df, model_name, csv_path.parent / "results.png")
+        out_name = f"results{args.out_suffix}.png"
+        plot_single_model(
+            df, model_name, csv_path.parent / out_name,
+            sample_n=args.sample_n,
+            exclude_labels=args.exclude_labels,
+            show_resized=args.show_resized,
+        )
 
     if not model_dfs:
         print(f"No results.csv found under {args.results_dir}")
