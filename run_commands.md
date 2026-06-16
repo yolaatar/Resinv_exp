@@ -147,3 +147,85 @@ Checkpoint: `/tmp/yolaatar/nnunet_results/Dataset001_TEM_witness/nnUNetTrainer__
 ```bash
 rsync -avz /tmp/yolaatar/nnunet_results/ ~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/
 ```
+
+### Model 2 — Multi-resolution (standard nnUNet, 4x resolutions)
+
+```bash
+bash ~/resinv_exp/scripts/training/train_multires.sh
+```
+
+Logs: `~/output_multires.log`
+Checkpoint: `~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset002_TEM_multires/nnUNetTrainer__nnUNetPlans__2d/fold_0/checkpoint_best.pth`
+
+### Model 3 — DA5 (nnUNetTrainerDA5, single resolution, same dataset as witness)
+
+```bash
+bash ~/resinv_exp/scripts/training/train_da5.sh
+```
+
+Logs: `~/output_da5.log`
+Checkpoint: `~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset001_TEM_witness/nnUNetTrainerDA5__nnUNetPlans__2d/fold_0/checkpoint_best.pth`
+
+### Model 4 — DA5 + Multi-resolution (nnUNetTrainerDA5, 4x resolutions)
+
+```bash
+bash ~/resinv_exp/scripts/training/train_da5_multires.sh
+```
+
+Logs: `~/output_da5_multires.log`
+Checkpoint: `~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset002_TEM_multires/nnUNetTrainerDA5__nnUNetPlans__2d/fold_0/checkpoint_best.pth`
+
+---
+
+## Evaluation — nnUNet models on TEM1 test set
+
+### Transfer scripts (on your Mac)
+
+```bash
+rsync -avz /Users/yolaatar/Developer/ADS/resinv/training/ yolaa@tassan.neuro.polymtl.ca:~/resinv_exp/scripts/training/
+```
+
+### Evaluate models 1 and 2 (GPU 1, on tassan)
+
+```bash
+source ~/resinv_exp/venv_resinv/bin/activate
+bash ~/resinv_exp/scripts/training/run_evaluation.sh
+```
+
+Logs: `~/output_eval_witness.log`, `~/output_eval_multires.log`
+
+### Evaluate models 3 and 4 (after training finishes)
+
+```bash
+source ~/resinv_exp/venv_resinv/bin/activate
+
+CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
+    --model-dir ~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset001_TEM_witness/nnUNetTrainerDA5__nnUNetPlans__2d \
+    --model-name da5 \
+    --data-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM1 \
+    --output-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet \
+    --gpu-id 0 \
+    2>&1 | tee ~/output_eval_da5.log
+
+CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
+    --model-dir ~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset002_TEM_multires/nnUNetTrainerDA5__nnUNetPlans__2d \
+    --model-name da5_multires \
+    --data-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM1 \
+    --output-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet \
+    --gpu-id 0 \
+    2>&1 | tee ~/output_eval_da5_multires.log
+```
+
+### Retrieve results (on your Mac)
+
+```bash
+rsync -avz yolaa@tassan.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet/ /Users/yolaatar/Developer/ADS/resinv/results_nnunet/
+```
+
+### Recompute metrics (local, no GPU)
+
+```bash
+cd /Users/yolaatar/Developer/ADS/resinv
+source ../axondeepseg/.venv/bin/activate
+python recompute_metrics.py --results-dir ./results_nnunet --data-dir /Users/yolaatar/Developer/ADS/data/TEM1
+```
