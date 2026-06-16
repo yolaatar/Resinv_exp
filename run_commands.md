@@ -149,6 +149,16 @@ Verify:
 grep "weights_only" ~/resinv_exp/venv_resinv/lib/python3.12/site-packages/nnunetv2/inference/predict_from_raw_data.py
 ```
 
+**Patch 4 — export_prediction None check (needed for inference return mode):**
+```bash
+sed -i "s/if output_file_truncated is not None:/if output_file_truncated:/" ~/resinv_exp/venv_resinv/lib/python3.12/site-packages/nnunetv2/inference/export_prediction.py
+```
+
+Verify:
+```bash
+grep "output_file_truncated" ~/resinv_exp/venv_resinv/lib/python3.12/site-packages/nnunetv2/inference/export_prediction.py
+```
+
 ### Model 1 — Witness (standard nnUNet, single resolution)
 
 ```bash
