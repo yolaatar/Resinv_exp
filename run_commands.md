@@ -77,6 +77,7 @@ CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
 
 ```bash
 pip install dandi -q
+mkdir -p ~/duke/temp/yolaatar/resinv_exp/data/TEM2
 dandi download --output-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM2 DANDI:001350/0.250511.1527
 ```
 
