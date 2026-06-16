@@ -201,6 +201,20 @@ Checkpoint: `~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset002_TEM_mu
 rsync -avz /Users/yolaatar/Developer/ADS/resinv/training/ yolaa@tassan.neuro.polymtl.ca:~/resinv_exp/scripts/training/
 ```
 
+### Debug single image (GPU 1, on tassan)
+
+```bash
+source ~/resinv_exp/venv_resinv/bin/activate
+CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
+    --model-dir ~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset001_TEM_witness/nnUNetTrainer__nnUNetPlans__2d \
+    --model-name witness \
+    --data-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM1 \
+    --output-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet \
+    --max-images 1 \
+    --gpu-id 0 \
+    2>&1 | tee ~/output_eval_debug.log
+```
+
 ### Evaluate models 1 and 2 (GPU 1, on tassan)
 
 ```bash
