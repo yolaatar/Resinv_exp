@@ -81,29 +81,14 @@ mkdir -p ~/duke/temp/yolaatar/resinv_exp/data/TEM2
 dandi download --output-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM2 DANDI:001350/0.250511.1527
 ```
 
-### TEM2 evaluation (all 86 images, 0.00493 μm/px native, upsampling for finer resolutions)
+### TEM2 evaluation — models 1 and 2 (86 images, 0.00493 μm/px native)
 
 ```bash
 source ~/resinv_exp/venv_resinv/bin/activate
-
-CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
-    --model-dir ~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset001_TEM_witness/nnUNetTrainer__nnUNetPlans__2d \
-    --model-name witness \
-    --data-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM2 \
-    --original-px 0.00493 \
-    --output-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2 \
-    --gpu-id 0 \
-    2>&1 | tee ~/output_eval_tem2_witness.log
-
-CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
-    --model-dir ~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset002_TEM_multires/nnUNetTrainer__nnUNetPlans__2d \
-    --model-name multires \
-    --data-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM2 \
-    --original-px 0.00493 \
-    --output-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2 \
-    --gpu-id 0 \
-    2>&1 | tee ~/output_eval_tem2_multires.log
+bash ~/resinv_exp/scripts/training/run_evaluation_tem2.sh
 ```
+
+Logs: `~/output_eval_tem2_witness.log`, `~/output_eval_tem2_multires.log`
 
 ---
 
