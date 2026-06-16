@@ -39,6 +39,7 @@ Tested with: nnunetv2==2.2.1
 import argparse
 import json
 import random
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -98,12 +99,28 @@ def predict(predictor, img_arr: np.ndarray) -> np.ndarray:
     img_arr: (H, W) uint8 grayscale at target pixel size.
     Returns (H, W) integer seg map with values 0/1/2.
 
-    spacing=[999,1,1] matches the PNG training default so nnUNet does not
-    internally resample — it processes the image exactly as given.
+    predict_single_npy_array in v2.2.1 always writes to disk (no return mode),
+    so we use predict_from_files with a temp directory instead.
     """
-    inp = img_arr.astype(np.float32)[np.newaxis, np.newaxis]  # (1, 1, H, W) — channel + dummy z
-    props = {"spacing": [999, 1, 1]}
-    return predictor.predict_single_npy_array(inp, props, None, False)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        inp_dir = Path(tmpdir) / "inp"
+        out_dir = Path(tmpdir) / "out"
+        inp_dir.mkdir()
+        out_dir.mkdir()
+
+        Image.fromarray(img_arr).save(inp_dir / "case_0000.png")
+
+        predictor.predict_from_files(
+            [[str(inp_dir / "case_0000.png")]],
+            [str(out_dir / "case")],
+            save_probabilities=False,
+            overwrite=True,
+            num_processes_preprocessing=1,
+            num_processes_segmentation_export=1,
+        )
+
+        seg = np.array(Image.open(out_dir / "case.png").convert("L"))
+    return seg
 
 
 def main():
