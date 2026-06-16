@@ -73,6 +73,13 @@ CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
     2>&1 | tee ~/output_eval_da5_multires.log
 ```
 
+### Download TEM2 from DANDI (on tassan, one-time)
+
+```bash
+pip install dandi -q
+dandi download --output-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM2 DANDI:001350/0.250511.1527
+```
+
 ### TEM2 evaluation (all 86 images, 0.00493 μm/px native, upsampling for finer resolutions)
 
 ```bash
