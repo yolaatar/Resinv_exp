@@ -73,6 +73,30 @@ CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
     2>&1 | tee ~/output_eval_da5_multires.log
 ```
 
+### TEM2 evaluation (all 86 images, 0.00493 μm/px native, upsampling for finer resolutions)
+
+```bash
+source ~/resinv_exp/venv_resinv/bin/activate
+
+CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
+    --model-dir ~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset001_TEM_witness/nnUNetTrainer__nnUNetPlans__2d \
+    --model-name witness \
+    --data-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM2 \
+    --original-px 0.00493 \
+    --output-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2 \
+    --gpu-id 0 \
+    2>&1 | tee ~/output_eval_tem2_witness.log
+
+CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
+    --model-dir ~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset002_TEM_multires/nnUNetTrainer__nnUNetPlans__2d \
+    --model-name multires \
+    --data-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM2 \
+    --original-px 0.00493 \
+    --output-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2 \
+    --gpu-id 0 \
+    2>&1 | tee ~/output_eval_tem2_multires.log
+```
+
 ---
 
 ## Retrieve and process results (on your Mac)
@@ -81,6 +105,12 @@ CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
 
 ```bash
 rsync -avz yolaa@tassan.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet/ /Users/yolaatar/Developer/ADS/resinv/results_nnunet/
+```
+
+### Retrieve nnUNet TEM2 results
+
+```bash
+rsync -avz yolaa@tassan.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2/ /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/
 ```
 
 ### Retrieve ADS baseline results (TEM1)
