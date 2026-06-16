@@ -32,7 +32,7 @@ CUDA_VISIBLE_DEVICES=1 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
     --model-name witness \
     --data-dir "${DATA_DIR}" \
     --output-dir "${OUTPUT_DIR}" \
-    --max-images 30 \
+    --max-images 50 \
     --gpu-id 0 \
     2>&1 | tee ~/output_eval_witness.log
 
@@ -43,7 +43,7 @@ CUDA_VISIBLE_DEVICES=1 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
     --model-name multires \
     --data-dir "${DATA_DIR}" \
     --output-dir "${OUTPUT_DIR}" \
-    --max-images 30 \
+    --max-images 50 \
     --gpu-id 0 \
     2>&1 | tee ~/output_eval_multires.log
 
