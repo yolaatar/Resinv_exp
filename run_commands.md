@@ -246,6 +246,12 @@ CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
     2>&1 | tee ~/output_eval_da5_multires.log
 ```
 
+### Retrieve debug log (on your Mac)
+
+```bash
+rsync -avz yolaa@tassan.neuro.polymtl.ca:~/output_eval_debug.log /Users/yolaatar/Developer/ADS/resinv/output_eval_debug.log
+```
+
 ### Retrieve results (on your Mac)
 
 ```bash
