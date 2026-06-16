@@ -37,7 +37,7 @@ CUDA_VISIBLE_DEVICES=1 nnUNetv2_train \
     ${DATASET_ID} \
     2d \
     0 \
-    --tr nnUNetTrainerDA5 \
+    -tr nnUNetTrainerDA5 \
     2>&1 | tee ~/output_da5_multires.log
 
 echo ""
