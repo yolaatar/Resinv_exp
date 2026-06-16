@@ -124,6 +124,7 @@ rsync -avz /Users/yolaatar/Developer/ADS/resinv/training/ yolaa@tassan.neuro.pol
 
 ### Fix nnUNet 2.2.1 + PyTorch 2.10 incompatibility (one-time, on tassan)
 
+**Patch 1 — polylr verbose arg (needed for training):**
 ```bash
 sed -i 's/super().__init__(optimizer, current_step if current_step is not None else -1, False)/super().__init__(optimizer, current_step if current_step is not None else -1)/' ~/resinv_exp/venv_resinv/lib/python3.12/site-packages/nnunetv2/training/lr_scheduler/polylr.py
 ```
@@ -131,6 +132,21 @@ sed -i 's/super().__init__(optimizer, current_step if current_step is not None e
 Verify:
 ```bash
 grep "super().__init__" ~/resinv_exp/venv_resinv/lib/python3.12/site-packages/nnunetv2/training/lr_scheduler/polylr.py
+```
+
+**Patch 2 — weights_only in trainer (needed for training resume):**
+```bash
+sed -i "s/torch.load(filename_or_checkpoint, map_location=self.device)/torch.load(filename_or_checkpoint, map_location=self.device, weights_only=False)/" ~/resinv_exp/venv_resinv/lib/python3.12/site-packages/nnunetv2/training/nnUNetTrainer/nnUNetTrainer.py
+```
+
+**Patch 3 — weights_only in predictor (needed for inference):**
+```bash
+sed -i "s/torch.load(join(model_training_output_dir, f'fold_{f}', checkpoint_name),/torch.load(join(model_training_output_dir, f'fold_{f}', checkpoint_name), weights_only=False,/" ~/resinv_exp/venv_resinv/lib/python3.12/site-packages/nnunetv2/inference/predict_from_raw_data.py
+```
+
+Verify:
+```bash
+grep "weights_only" ~/resinv_exp/venv_resinv/lib/python3.12/site-packages/nnunetv2/inference/predict_from_raw_data.py
 ```
 
 ### Model 1 — Witness (standard nnUNet, single resolution)
