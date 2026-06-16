@@ -101,7 +101,7 @@ def predict(predictor, img_arr: np.ndarray) -> np.ndarray:
     spacing=[999,1,1] matches the PNG training default so nnUNet does not
     internally resample — it processes the image exactly as given.
     """
-    inp = img_arr.astype(np.float32)[np.newaxis]  # (1, H, W)
+    inp = img_arr.astype(np.float32)[np.newaxis, np.newaxis]  # (1, 1, H, W) — channel + dummy z
     props = {"spacing": [999, 1, 1]}
     return predictor.predict_single_npy_array(inp, props, None, False)
 
