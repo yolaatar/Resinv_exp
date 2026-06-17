@@ -74,7 +74,11 @@ def px_tag(px: float) -> str:
 
 
 def find_images(data_dir: Path, split_path: Path | None) -> list[Path]:
-    if split_path is not None and split_path.exists():
+    try:
+        split_exists = split_path is not None and split_path.exists()
+    except PermissionError:
+        split_exists = False
+    if split_exists:
         split = json.loads(split_path.read_text())
         subjects = split["test_subjects"]
         print(f"Using test split ({len(subjects)} subjects) from {split_path.name}")
