@@ -108,6 +108,13 @@ CUDA_VISIBLE_DEVICES=0 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
 ```
 
 **GPU 1 — model 4 (DA5+multires), TEM1 then TEM2:**
+
+If duke top-level listing fails on tassan, copy split file from joplin first:
+```bash
+# On joplin
+scp ~/duke/temp/yolaatar/resinv_exp/data/TEM1/subject_split.json yolaa@ge.polymtl.ca@tassan:~/subject_split_tem1.json
+```
+
 ```bash
 tmux new -s eval_da5_multires
 source ~/resinv_exp/venv_resinv/bin/activate
@@ -117,6 +124,7 @@ CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
     --model-dir ~/nnunet_da5_models/Dataset002_TEM_multires/nnUNetTrainerDA5__nnUNetPlans__2d \
     --model-name da5_multires \
     --data-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM1 \
+    --split-file ~/subject_split_tem1.json \
     --output-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet \
     --max-images 40 --gpu-id 0 2>&1 | tee ~/output_eval_da5_multires_tem1.log && \
 CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
