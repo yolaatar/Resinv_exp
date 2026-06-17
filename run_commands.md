@@ -111,6 +111,7 @@ CUDA_VISIBLE_DEVICES=0 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
 ```bash
 tmux new -s eval_da5_multires
 source ~/resinv_exp/venv_resinv/bin/activate
+cd ~/resinv_exp/scripts/training && git pull
 
 CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
     --model-dir ~/nnunet_da5_models/Dataset002_TEM_multires/nnUNetTrainerDA5__nnUNetPlans__2d \
