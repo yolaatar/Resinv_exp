@@ -215,6 +215,5 @@ python ~/resinv_exp/scripts/plot_resinv.py \
 ### Pull only CSVs and plots (on your Mac)
 
 ```bash
-mkdir -p /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/{witness,multires}
-rsync -avz -e "ssh -l yolaa@ge.polymtl.ca" "joplin.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2/{witness/results.csv,witness/results.png,witness/comparison.png,multires/results.csv,multires/results.png,multires/comparison.png,comparison.png}" /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/
+mkdir -p /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/{witness,multires} && ssh "yolaa@ge.polymtl.ca@joplin.neuro.polymtl.ca" "tar -C ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2 -cf - witness/results.csv witness/results.png multires/results.csv multires/results.png comparison.png" | tar -C /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2 -xf -
 ```
