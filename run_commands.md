@@ -90,6 +90,19 @@ bash ~/resinv_exp/scripts/training/run_evaluation_tem2.sh
 
 Logs: `~/output_eval_tem2_witness.log`, `~/output_eval_tem2_multires.log`
 
+### TEM2 — multires only (run separately if needed)
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
+    --model-dir ~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset002_TEM_multires/nnUNetTrainer__nnUNetPlans__2d \
+    --model-name multires \
+    --data-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM2/001350 \
+    --original-px 0.00493 \
+    --output-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2 \
+    --gpu-id 0 \
+    2>&1 | tee ~/output_eval_tem2_multires.log
+```
+
 ---
 
 ## Retrieve and process results (on your Mac)
