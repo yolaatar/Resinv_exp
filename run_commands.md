@@ -215,11 +215,10 @@ python ~/resinv_exp/scripts/plot_resinv.py \
 ### Pull only CSVs and plots (on your Mac)
 
 ```bash
-rsync -avz --include="*.csv" --include="*.png" --exclude="*/predictions/*" \
-    yolaa@tassan.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet/ \
-    /Users/yolaatar/Developer/ADS/resinv/results_nnunet/
-
-rsync -avz --include="*.csv" --include="*.png" --exclude="*/predictions/*" \
-    yolaa@tassan.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2/ \
-    /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/
+mkdir -p /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/{witness,multires}
+scp "yolaa@ge.polymtl.ca@joplin.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2/witness/results.csv" /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/witness/
+scp "yolaa@ge.polymtl.ca@joplin.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2/witness/*.png" /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/witness/
+scp "yolaa@ge.polymtl.ca@joplin.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2/multires/results.csv" /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/multires/
+scp "yolaa@ge.polymtl.ca@joplin.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2/multires/*.png" /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/multires/
+scp "yolaa@ge.polymtl.ca@joplin.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2/comparison.png" /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/
 ```
