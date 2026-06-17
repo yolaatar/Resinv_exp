@@ -57,10 +57,25 @@ def parse_px(filename: str) -> float | None:
     return float(m.group(1)) if m else None
 
 
-def find_gt_mask(img_name: str, label: str, data_dir: Path) -> Path | None:
+def load_gt_mask(img_name: str, label: str, data_dir: Path) -> np.ndarray | None:
+    """Load GT mask for a label. Falls back to splitting axonmyelin if separate mask missing."""
     subject = img_name.split("_")[0]
-    gt_path = data_dir / "derivatives" / "labels" / subject / "micr" / f"{img_name}_seg-{label}-manual.png"
-    return gt_path if gt_path.exists() else None
+    base = data_dir / "derivatives" / "labels" / subject / "micr"
+
+    direct = base / f"{img_name}_seg-{label}-manual.png"
+    if direct.exists():
+        return load_gray(direct)
+
+    # Split axonmyelin: white (255) = axon, gray (>0 and <255) = myelin
+    combined = base / f"{img_name}_seg-axonmyelin-manual.png"
+    if combined.exists():
+        arr = load_gray(combined)
+        if label == "axon":
+            return (arr == 255).astype(np.uint8) * 255
+        elif label == "myelin":
+            return ((arr > 0) & (arr < 255)).astype(np.uint8) * 255
+
+    return None
 
 
 def detect_active_labels(pred_dir: Path, ref_px: float) -> list[str]:
@@ -106,9 +121,9 @@ def recompute_image(img_dir: Path, model_name: str, data_dir: Path | None) -> pd
     ref_masks = {}
     ref_sources = {}
     for label in active_labels:
-        gt_path = find_gt_mask(img_name, label, data_dir) if (data_dir and label in GT_LABELS) else None
-        if gt_path is not None:
-            ref_masks[label] = load_gray(gt_path)
+        gt_arr = load_gt_mask(img_name, label, data_dir) if (data_dir and label in GT_LABELS) else None
+        if gt_arr is not None:
+            ref_masks[label] = gt_arr
             ref_sources[label] = "gt"
         else:
             candidates = [p for p in pred_dir.glob(f"*_seg-{label}.png")
