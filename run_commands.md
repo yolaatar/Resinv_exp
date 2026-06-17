@@ -216,9 +216,5 @@ python ~/resinv_exp/scripts/plot_resinv.py \
 
 ```bash
 mkdir -p /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/{witness,multires}
-scp "yolaa@ge.polymtl.ca@joplin.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2/witness/results.csv" /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/witness/
-scp "yolaa@ge.polymtl.ca@joplin.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2/witness/*.png" /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/witness/
-scp "yolaa@ge.polymtl.ca@joplin.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2/multires/results.csv" /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/multires/
-scp "yolaa@ge.polymtl.ca@joplin.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2/multires/*.png" /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/multires/
-scp "yolaa@ge.polymtl.ca@joplin.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2/comparison.png" /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/
+rsync -avz -e "ssh -l yolaa@ge.polymtl.ca" "joplin.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2/{witness/results.csv,witness/results.png,witness/comparison.png,multires/results.csv,multires/results.png,multires/comparison.png,comparison.png}" /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/
 ```
