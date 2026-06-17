@@ -80,28 +80,31 @@ Run in parallel on 2 GPUs. First sync model 4 from local home:
 rsync -avz ~/nnunet_results_tmp/ ~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/
 ```
 
+Note: DA5 model dirs must be copied from joplin first (duke permission issue on tassan):
+```bash
+# On joplin
+rsync -avz --mkpath ~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset001_TEM_witness/nnUNetTrainerDA5__nnUNetPlans__2d/ yolaa@ge.polymtl.ca@tassan:~/nnunet_da5_models/Dataset001_TEM_witness/nnUNetTrainerDA5__nnUNetPlans__2d/
+rsync -avz --mkpath ~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset002_TEM_multires/nnUNetTrainerDA5__nnUNetPlans__2d/ yolaa@ge.polymtl.ca@tassan:~/nnunet_da5_models/Dataset002_TEM_multires/nnUNetTrainerDA5__nnUNetPlans__2d/
+```
+
 **GPU 0 — model 3 (DA5), TEM1 then TEM2:**
 ```bash
 tmux new -s eval_da5
 source ~/resinv_exp/venv_resinv/bin/activate
 
 CUDA_VISIBLE_DEVICES=0 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
-    --model-dir ~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset001_TEM_witness/nnUNetTrainerDA5__nnUNetPlans__2d \
+    --model-dir ~/nnunet_da5_models/Dataset001_TEM_witness/nnUNetTrainerDA5__nnUNetPlans__2d \
     --model-name da5 \
     --data-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM1 \
     --output-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet \
-    --max-images 40 \
-    --gpu-id 0 \
-    2>&1 | tee ~/output_eval_da5.log && \
+    --max-images 40 --gpu-id 0 2>&1 | tee ~/output_eval_da5.log && \
 CUDA_VISIBLE_DEVICES=0 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
-    --model-dir ~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset001_TEM_witness/nnUNetTrainerDA5__nnUNetPlans__2d \
+    --model-dir ~/nnunet_da5_models/Dataset001_TEM_witness/nnUNetTrainerDA5__nnUNetPlans__2d \
     --model-name da5 \
     --data-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM2/001350 \
     --original-px 0.00493 \
     --output-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2 \
-    --max-images 40 \
-    --gpu-id 0 \
-    2>&1 | tee ~/output_eval_da5_tem2.log
+    --max-images 40 --gpu-id 0 2>&1 | tee ~/output_eval_da5_tem2.log
 ```
 
 **GPU 1 — model 4 (DA5+multires), TEM1 then TEM2:**
@@ -110,22 +113,18 @@ tmux new -s eval_da5_multires
 source ~/resinv_exp/venv_resinv/bin/activate
 
 CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
-    --model-dir ~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset002_TEM_multires/nnUNetTrainerDA5__nnUNetPlans__2d \
+    --model-dir ~/nnunet_da5_models/Dataset002_TEM_multires/nnUNetTrainerDA5__nnUNetPlans__2d \
     --model-name da5_multires \
     --data-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM1 \
     --output-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet \
-    --max-images 40 \
-    --gpu-id 0 \
-    2>&1 | tee ~/output_eval_da5_multires_tem1.log && \
+    --max-images 40 --gpu-id 0 2>&1 | tee ~/output_eval_da5_multires_tem1.log && \
 CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
-    --model-dir ~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results/Dataset002_TEM_multires/nnUNetTrainerDA5__nnUNetPlans__2d \
+    --model-dir ~/nnunet_da5_models/Dataset002_TEM_multires/nnUNetTrainerDA5__nnUNetPlans__2d \
     --model-name da5_multires \
     --data-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM2/001350 \
     --original-px 0.00493 \
     --output-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2 \
-    --max-images 40 \
-    --gpu-id 0 \
-    2>&1 | tee ~/output_eval_da5_multires_tem2.log
+    --max-images 40 --gpu-id 0 2>&1 | tee ~/output_eval_da5_multires_tem2.log
 ```
 
 ### Download TEM2 from DANDI (on tassan, one-time)
