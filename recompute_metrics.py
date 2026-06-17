@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 Recompute Dice metrics from existing prediction PNGs using MONAI.
-
-Run this locally after rsync-ing results from the cluster — no GPU needed.
+Optimized: parallel image processing with multiprocessing Pool.
 
 For axon/myelin labels: Dice is computed against manual GT masks from
   {data_dir}/derivatives/labels/{subject}/micr/{img_name}_seg-{label}-manual.png
@@ -13,10 +12,12 @@ For uaxon (no GT available): Dice is computed against the model prediction
 Usage:
     python recompute_metrics.py --results-dir ./results --data-dir ./data/TEM1
     python recompute_metrics.py --results-dir ./results   # uaxon-only mode
+    python recompute_metrics.py --results-dir ./results --data-dir ./data/TEM2 --workers 32
 """
 
 import argparse
 import re
+from multiprocessing import Pool, cpu_count
 from pathlib import Path
 
 import numpy as np
@@ -29,9 +30,7 @@ Image.MAX_IMAGE_PIXELS = None
 
 TRAINING_PX = 0.00493
 ORIGINAL_PX = 0.0018625
-# Labels with GT available — compare against manual masks
 GT_LABELS = {"axon", "myelin"}
-# Labels to ignore entirely
 SKIP_LABELS = {"nuclei", "process", "axonmyelin"}
 
 
@@ -39,7 +38,7 @@ def load_gray(path: Path) -> np.ndarray:
     return np.array(Image.open(path).convert("L"))
 
 
-def resample_mask(img: np.ndarray, target_shape: tuple[int, int]) -> np.ndarray:
+def resample_mask(img: np.ndarray, target_shape: tuple) -> np.ndarray:
     from skimage.transform import resize
     return resize(img, target_shape, order=0, preserve_range=True,
                   anti_aliasing=False).astype(img.dtype)
@@ -59,18 +58,12 @@ def parse_px(filename: str) -> float | None:
 
 
 def find_gt_mask(img_name: str, label: str, data_dir: Path) -> Path | None:
-    """Look up a manual GT mask in the BIDS derivatives tree."""
-    # Subject is the first component of the BIDS image name (e.g. sub-nyuMouse30)
     subject = img_name.split("_")[0]
     gt_path = data_dir / "derivatives" / "labels" / subject / "micr" / f"{img_name}_seg-{label}-manual.png"
     return gt_path if gt_path.exists() else None
 
 
 def detect_active_labels(pred_dir: Path, ref_px: float) -> list[str]:
-    """
-    Return labels with non-trivial predictions at the reference resolution.
-    Skips labels in SKIP_LABELS and those covering >50% of the image.
-    """
     all_labels = sorted({
         re.search(r"_seg-(.+)\.png", p.name).group(1)
         for p in pred_dir.glob("*_seg-*.png")
@@ -88,8 +81,7 @@ def detect_active_labels(pred_dir: Path, ref_px: float) -> list[str]:
         if not candidates:
             continue
         arr = load_gray(candidates[0])
-        coverage = (arr > 0).mean()
-        if 0 < coverage < 0.5:
+        if 0 < (arr > 0).mean() < 0.5:
             active.append(label)
     return active
 
@@ -107,47 +99,47 @@ def recompute_image(img_dir: Path, model_name: str, data_dir: Path | None) -> pd
 
     ref_px = min(px_set, key=lambda x: abs(x - TRAINING_PX))
     active_labels = detect_active_labels(pred_dir, ref_px)
-
     if not active_labels:
-        print(f"  No active labels found, skipping.")
         return pd.DataFrame()
 
-    print(f"  Labels: {active_labels}")
-
-    # Build reference mask per label: GT if available, else prediction at ref_px
+    # Load reference masks (GT if available, else native-px prediction)
     ref_masks = {}
-    ref_sources = {}  # track where the reference came from for logging
+    ref_sources = {}
     for label in active_labels:
         gt_path = find_gt_mask(img_name, label, data_dir) if (data_dir and label in GT_LABELS) else None
         if gt_path is not None:
             ref_masks[label] = load_gray(gt_path)
             ref_sources[label] = "gt"
-            print(f"  {label}: using GT from {gt_path.name}")
         else:
             candidates = [p for p in pred_dir.glob(f"*_seg-{label}.png")
                           if parse_px(p.name) is not None and abs(parse_px(p.name) - ref_px) < 1e-7]
             if candidates:
                 ref_masks[label] = load_gray(candidates[0])
                 ref_sources[label] = "pred"
-                if label in GT_LABELS and data_dir:
-                    print(f"  {label}: GT not found, falling back to prediction at {ref_px} μm/px")
-                else:
-                    print(f"  {label}: using prediction at {ref_px} μm/px as reference")
 
     if not ref_masks:
-        print(f"  No reference masks available, skipping.")
         return pd.DataFrame()
 
-    # Each label may have a different reference shape (GT vs pred dimensions differ)
     ref_shapes = {label: ref_masks[label].shape for label in ref_masks}
+
+    # Pre-load all prediction files grouped by px to avoid redundant globs
+    preds_by_px: dict[float, dict[str, Path]] = {}
+    for p in all_pred_files:
+        px = parse_px(p.name)
+        m = re.search(r"_seg-(.+)\.png", p.name)
+        if px is None or m is None:
+            continue
+        label = m.group(1)
+        preds_by_px.setdefault(px, {})[label] = p
 
     rows = []
     for px in px_set:
-        sample = next((p for p in pred_dir.glob("*_seg-*.png")
-                       if parse_px(p.name) is not None and abs(parse_px(p.name) - px) < 1e-7), None)
-        if sample is None:
+        label_files = preds_by_px.get(px, {})
+        if not label_files:
             continue
-        pred_h, pred_w = load_gray(sample).shape
+
+        sample_path = next(iter(label_files.values()))
+        pred_h, pred_w = load_gray(sample_path).shape
 
         row = {
             "image": img_name,
@@ -160,57 +152,64 @@ def recompute_image(img_dir: Path, model_name: str, data_dir: Path | None) -> pd
         }
 
         for label in active_labels:
-            if label not in ref_masks:
+            if label not in ref_masks or label not in label_files:
                 continue
             ref_mask = ref_masks[label]
             ref_h, ref_w = ref_shapes[label]
-            pred_path = next((p for p in pred_dir.glob(f"*_seg-{label}.png")
-                              if parse_px(p.name) is not None and abs(parse_px(p.name) - px) < 1e-7), None)
-            if pred_path is None:
-                continue
-            pred = load_gray(pred_path)
+            pred = load_gray(label_files[label])
 
-            row[f"dice_{label}_native"] = dice_monai(resample_mask(pred, (ref_h, ref_w)), ref_mask)
-            row[f"dice_{label}_resized"] = dice_monai(pred, resample_mask(ref_mask, (pred_h, pred_w)))
+            pred_at_ref = resample_mask(pred, (ref_h, ref_w))
+            ref_at_pred = resample_mask(ref_mask, (pred_h, pred_w))
+
+            row[f"dice_{label}_native"] = dice_monai(pred_at_ref, ref_mask)
+            row[f"dice_{label}_resized"] = dice_monai(pred, ref_at_pred)
             row[f"dice_{label}_interp_baseline"] = dice_monai(
-                resample_mask(resample_mask(ref_mask, (pred_h, pred_w)), (ref_h, ref_w)), ref_mask
+                resample_mask(ref_at_pred, (ref_h, ref_w)), ref_mask
             )
 
         rows.append(row)
         label_summary = ", ".join(
-            f"{l}({'GT' if ref_sources.get(l) == 'gt' else 'pred'}) native: {row.get(f'dice_{l}_native', float('nan')):.3f}"
-            for l in active_labels
+            f"{l}({ref_sources.get(l, '?')}) {row.get(f'dice_{l}_native', float('nan')):.3f}"
+            for l in active_labels if l in ref_masks
         )
-        print(f"  {px} μm/px — {label_summary}")
+        print(f"  [{img_name}] {px:.7g} μm/px — {label_summary}", flush=True)
 
     df = pd.DataFrame(rows)
     df.to_csv(img_dir / "metrics.csv", index=False)
     return df
 
 
+def _worker(args: tuple) -> pd.DataFrame:
+    img_dir, model_name, data_dir = args
+    try:
+        return recompute_image(img_dir, model_name, data_dir)
+    except Exception as e:
+        print(f"  ERROR [{args[0].name}]: {e}", flush=True)
+        return pd.DataFrame()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--results-dir", type=Path, default=Path("./results"))
     parser.add_argument("--data-dir", type=Path, default=None,
-                        help="Dataset root (BIDS). Needed to load GT masks for axon/myelin. "
-                             "GT looked up at derivatives/labels/{subject}/micr/{img}_seg-{label}-manual.png")
+                        help="Dataset root (BIDS). Needed to load GT masks for axon/myelin.")
+    parser.add_argument("--workers", type=int, default=min(cpu_count(), 32),
+                        help="Parallel workers (default: min(cpu_count, 32))")
     args = parser.parse_args()
 
     for model_dir in sorted(args.results_dir.iterdir()):
         if not model_dir.is_dir():
             continue
         model_name = model_dir.name
-        print(f"\n{'='*60}\nModel: {model_name}")
+        print(f"\n{'='*60}\nModel: {model_name} — {args.workers} workers")
 
-        all_dfs = []
-        for img_dir in sorted(model_dir.iterdir()):
-            if not img_dir.is_dir():
-                continue
-            print(f"\nImage: {img_dir.name}")
-            df = recompute_image(img_dir, model_name, args.data_dir)
-            if not df.empty:
-                all_dfs.append(df)
+        img_dirs = sorted([d for d in model_dir.iterdir() if d.is_dir()])
+        worker_args = [(d, model_name, args.data_dir) for d in img_dirs]
 
+        with Pool(args.workers) as pool:
+            dfs = pool.map(_worker, worker_args)
+
+        all_dfs = [df for df in dfs if not df.empty]
         if all_dfs:
             summary = pd.concat(all_dfs, ignore_index=True)
             summary.to_csv(model_dir / "results.csv", index=False)
