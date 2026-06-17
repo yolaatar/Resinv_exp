@@ -101,7 +101,7 @@ def detect_active_labels(pred_dir: Path, ref_px: float) -> list[str]:
     return active
 
 
-def recompute_image(img_dir: Path, model_name: str, data_dir: Path | None) -> pd.DataFrame:
+def recompute_image(img_dir: Path, model_name: str, data_dir: Path | None, gt_only: bool = False) -> pd.DataFrame:
     pred_dir = img_dir / "predictions"
     img_name = img_dir.name
     if not pred_dir.exists():
@@ -133,6 +133,10 @@ def recompute_image(img_dir: Path, model_name: str, data_dir: Path | None) -> pd
                 ref_sources[label] = "pred"
 
     if not ref_masks:
+        return pd.DataFrame()
+
+    if gt_only and all(v == "pred" for v in ref_sources.values()):
+        print(f"  [{img_dir.name}] skipping — no GT found", flush=True)
         return pd.DataFrame()
 
     ref_shapes = {label: ref_masks[label].shape for label in ref_masks}
@@ -195,9 +199,9 @@ def recompute_image(img_dir: Path, model_name: str, data_dir: Path | None) -> pd
 
 
 def _worker(args: tuple) -> pd.DataFrame:
-    img_dir, model_name, data_dir = args
+    img_dir, model_name, data_dir, gt_only = args
     try:
-        return recompute_image(img_dir, model_name, data_dir)
+        return recompute_image(img_dir, model_name, data_dir, gt_only)
     except Exception as e:
         print(f"  ERROR [{args[0].name}]: {e}", flush=True)
         return pd.DataFrame()
@@ -210,6 +214,8 @@ def main():
                         help="Dataset root (BIDS). Needed to load GT masks for axon/myelin.")
     parser.add_argument("--workers", type=int, default=min(cpu_count(), 32),
                         help="Parallel workers (default: min(cpu_count, 32))")
+    parser.add_argument("--gt-only", action="store_true",
+                        help="Skip images where no GT mask is found (all labels fall back to pred)")
     args = parser.parse_args()
 
     for model_dir in sorted(args.results_dir.iterdir()):
@@ -219,7 +225,7 @@ def main():
         print(f"\n{'='*60}\nModel: {model_name} — {args.workers} workers")
 
         img_dirs = sorted([d for d in model_dir.iterdir() if d.is_dir()])
-        worker_args = [(d, model_name, args.data_dir) for d in img_dirs]
+        worker_args = [(d, model_name, args.data_dir, args.gt_only) for d in img_dirs]
 
         with Pool(args.workers) as pool:
             dfs = pool.map(_worker, worker_args)

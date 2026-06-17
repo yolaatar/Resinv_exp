@@ -143,6 +143,8 @@ def main():
                         help="CUDA device index (0 = first visible GPU per CUDA_VISIBLE_DEVICES)")
     parser.add_argument("--images", type=str, nargs="*", default=None,
                         help="Specific image stems to evaluate")
+    parser.add_argument("--subjects", type=str, nargs="*", default=None,
+                        help="Only evaluate images from these subjects (e.g. sub-370 sub-372)")
     parser.add_argument("--max-images", type=int, default=None,
                         help="Cap number of images evaluated (random sample, seed=42)")
     args = parser.parse_args()
@@ -172,6 +174,8 @@ def main():
     images = find_images(args.data_dir, split_path)
     if args.images:
         images = [p for p in images if p.stem in args.images]
+    if args.subjects:
+        images = [p for p in images if p.stem.split("_")[0] in args.subjects]
     if args.max_images and len(images) > args.max_images:
         random.seed(42)
         images = sorted(random.sample(images, args.max_images))
