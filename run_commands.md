@@ -225,3 +225,11 @@ python ~/resinv_exp/scripts/plot_resinv.py \
 ```bash
 mkdir -p /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/{witness,multires} && ssh "yolaa@ge.polymtl.ca@joplin.neuro.polymtl.ca" "tar -C ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2 -cf - witness/results.csv witness/results.png multires/results.csv multires/results.png comparison.png" | tar -C /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2 -xf -
 ```
+
+### Pull prediction images — GT subjects only (on your Mac)
+
+GT subjects: sub-370, sub-372, sub-373C, sub-374, sub-375 (10 images total)
+
+```bash
+mkdir -p /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/{witness,multires} && ssh "yolaa@ge.polymtl.ca@joplin.neuro.polymtl.ca" "cd ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2 && find witness multires -type f -name '*.png' \( -path '*/sub-370*' -o -path '*/sub-372*' -o -path '*/sub-373C*' -o -path '*/sub-374*' -o -path '*/sub-375*' \) | tar -cf - -T -" | tar -C /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2 -xf -
+```
