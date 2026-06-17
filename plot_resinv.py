@@ -35,12 +35,12 @@ def _detect_labels(df: pd.DataFrame) -> list[str]:
 
 # Meaningful tick positions in μm/px and their nm labels
 _XTICKS_UM = [0.0018625, 0.003, 0.00493, 0.007, 0.01, 0.016]
-_XTICK_LABELS = ["1.9 nm", "3 nm", "4.9 nm\n(train)", "7 nm", "10 nm", "16 nm"]
+_XTICK_LABELS = ["1.9 nm", "3 nm", "4.9 nm (train)", "7 nm", "10 nm", "16 nm"]
 
 
 def _set_x_ticks(ax):
     ax.set_xticks(_XTICKS_UM)
-    ax.set_xticklabels(_XTICK_LABELS, fontsize=8)
+    ax.set_xticklabels(_XTICK_LABELS, fontsize=8, rotation=45, ha="right")
     ax.set_xlim(_XTICKS_UM[0] * 0.9, _XTICKS_UM[-1] * 1.1)
 
 
