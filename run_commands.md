@@ -105,43 +105,66 @@ CUDA_VISIBLE_DEVICES=0 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
 
 ---
 
-## Retrieve and process results (on your Mac)
+## Process results on tassan (no need to pull prediction PNGs)
 
-### Retrieve nnUNet results
+### Transfer processing scripts to tassan (on your Mac)
 
 ```bash
-rsync -avz yolaa@tassan.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet/ /Users/yolaatar/Developer/ADS/resinv/results_nnunet/
+rsync -avz /Users/yolaatar/Developer/ADS/resinv/recompute_metrics.py yolaa@tassan.neuro.polymtl.ca:~/resinv_exp/scripts/
+rsync -avz /Users/yolaatar/Developer/ADS/resinv/plot_resinv.py yolaa@tassan.neuro.polymtl.ca:~/resinv_exp/scripts/
 ```
 
-### Retrieve nnUNet TEM2 results
+### Install dependencies (one-time, on tassan)
 
 ```bash
-rsync -avz yolaa@tassan.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2/ /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/
+source ~/resinv_exp/venv_resinv/bin/activate
+pip install pandas matplotlib monai scikit-image -q
 ```
 
-### Retrieve ADS baseline results (TEM1)
+### Recompute metrics (on tassan)
 
 ```bash
-rsync -avz yolaa@tassan.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_tem1/ /Users/yolaatar/Developer/ADS/resinv/results_tem1/
+source ~/resinv_exp/venv_resinv/bin/activate
+DATA_TEM1="${HOME}/duke/temp/yolaatar/resinv_exp/data/TEM1"
+DATA_TEM2="${HOME}/duke/temp/yolaatar/resinv_exp/data/TEM2/001350"
+
+# TEM1 — nnUNet models (all 4)
+python ~/resinv_exp/scripts/recompute_metrics.py \
+    --results-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet \
+    --data-dir ${DATA_TEM1}
+
+# TEM2 — nnUNet models
+python ~/resinv_exp/scripts/recompute_metrics.py \
+    --results-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2
+
+# ADS baseline (TEM1)
+python ~/resinv_exp/scripts/recompute_metrics.py \
+    --results-dir ~/duke/temp/yolaatar/resinv_exp/results_tem1 \
+    --data-dir ${DATA_TEM1}
 ```
 
-### Recompute metrics
+### Plot (on tassan)
 
 ```bash
-cd /Users/yolaatar/Developer/ADS/resinv
-source ../axondeepseg/.venv/bin/activate
+source ~/resinv_exp/venv_resinv/bin/activate
 
-# nnUNet models
-python recompute_metrics.py --results-dir ./results_nnunet --data-dir /Users/yolaatar/Developer/ADS/data/TEM1
+python ~/resinv_exp/scripts/plot_resinv.py \
+    --results-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet \
+    --exclude-labels uaxon
 
-# ADS baseline
-python recompute_metrics.py --results-dir ./results_tem1 --data-dir /Users/yolaatar/Developer/ADS/data/TEM1
+python ~/resinv_exp/scripts/plot_resinv.py \
+    --results-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2 \
+    --exclude-labels uaxon
 ```
 
-### Plot
+### Pull only CSVs and plots (on your Mac)
 
 ```bash
-cd /Users/yolaatar/Developer/ADS/resinv
-source ../axondeepseg/.venv/bin/activate
-python plot_resinv.py --results-dir ./results_nnunet
+rsync -avz --include="*.csv" --include="*.png" --exclude="*/predictions/*" \
+    yolaa@tassan.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet/ \
+    /Users/yolaatar/Developer/ADS/resinv/results_nnunet/
+
+rsync -avz --include="*.csv" --include="*.png" --exclude="*/predictions/*" \
+    yolaa@tassan.neuro.polymtl.ca:~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2/ \
+    /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/
 ```
