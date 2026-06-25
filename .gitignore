@@ -1,0 +1,12 @@
+run_commands.md
+__pycache__/
+*.pyc
+.DS_Store
+*.log
+results/
+results_nnunet/
+results_nnunet_tem2/
+results_tem1/
+overlays/
+*.csv
+*.png
