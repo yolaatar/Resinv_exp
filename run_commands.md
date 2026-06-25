@@ -103,6 +103,7 @@ CUDA_VISIBLE_DEVICES=0 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
     --model-name da5 \
     --data-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM2/001350 \
     --original-px 0.00493 \
+    --subjects sub-370 sub-372 sub-373C sub-374 sub-375 \
     --output-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2 \
     --max-images 40 --gpu-id 0 2>&1 | tee ~/output_eval_da5_tem2.log
 ```
@@ -132,8 +133,33 @@ CUDA_VISIBLE_DEVICES=1 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
     --model-name da5_multires \
     --data-dir ~/duke/temp/yolaatar/resinv_exp/data/TEM2/001350 \
     --original-px 0.00493 \
+    --subjects sub-370 sub-372 sub-373C sub-374 sub-375 \
     --output-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2 \
     --max-images 40 --gpu-id 0 2>&1 | tee ~/output_eval_da5_multires_tem2.log
+
+### Model 4 TEM2 — resume on GPU 0 (with skip logic)
+
+Duke listing fails from tmux on tassan — copy GT subjects to local first (from normal SSH session):
+```bash
+mkdir -p ~/tem2_gt_data
+cp -r ~/duke/temp/yolaatar/resinv_exp/data/TEM2/001350/sub-370 ~/duke/temp/yolaatar/resinv_exp/data/TEM2/001350/sub-372 ~/duke/temp/yolaatar/resinv_exp/data/TEM2/001350/sub-373C ~/duke/temp/yolaatar/resinv_exp/data/TEM2/001350/sub-374 ~/duke/temp/yolaatar/resinv_exp/data/TEM2/001350/sub-375 ~/tem2_gt_data/
+```
+
+Then from tmux:
+```bash
+CUDA_VISIBLE_DEVICES=0 python ~/resinv_exp/scripts/training/evaluate_nnunet.py \
+    --model-dir ~/nnunet_da5_models/Dataset002_TEM_multires/nnUNetTrainerDA5__nnUNetPlans__2d \
+    --model-name da5_multires \
+    --data-dir ~/tem2_gt_data \
+    --original-px 0.00493 \
+    --output-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2 \
+    --gpu-id 0 2>&1 | tee -a ~/output_eval_da5_multires_tem2.log
+```
+
+Cleanup after:
+```bash
+rm -rf ~/tem2_gt_data
+```
 ```
 
 ### Download TEM2 from DANDI (on tassan, one-time)
@@ -184,21 +210,25 @@ source ~/resinv_exp/venv_resinv/bin/activate
 pip install pandas matplotlib monai scikit-image -q
 ```
 
-### Recompute metrics (on tassan)
+### Recompute metrics (run on joplin — duke accessible there)
 
 ```bash
 source ~/resinv_exp/venv_resinv/bin/activate
 DATA_TEM1="${HOME}/duke/temp/yolaatar/resinv_exp/data/TEM1"
 DATA_TEM2="${HOME}/duke/temp/yolaatar/resinv_exp/data/TEM2/001350"
 
-# TEM1 — nnUNet models (all 4)
+# TEM1 — models 3 and 4 only
 python ~/resinv_exp/scripts/recompute_metrics.py \
     --results-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet \
-    --data-dir ${DATA_TEM1}
+    --data-dir ${DATA_TEM1} \
+    --models da5 da5_multires
 
-# TEM2 — nnUNet models
+# TEM2 — models 3 and 4, GT subjects only (10 images: sub-370 s6/7, sub-372 s5, sub-373C s1c1/c2, sub-374 s4, sub-375 s1/5/6/7)
 python ~/resinv_exp/scripts/recompute_metrics.py \
-    --results-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2
+    --results-dir ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2 \
+    --data-dir ${DATA_TEM2} \
+    --models da5 da5_multires \
+    --gt-only
 
 # ADS baseline (TEM1)
 python ~/resinv_exp/scripts/recompute_metrics.py \
@@ -206,7 +236,7 @@ python ~/resinv_exp/scripts/recompute_metrics.py \
     --data-dir ${DATA_TEM1}
 ```
 
-### Plot (on tassan)
+### Plot (run on joplin — duke accessible there)
 
 ```bash
 source ~/resinv_exp/venv_resinv/bin/activate

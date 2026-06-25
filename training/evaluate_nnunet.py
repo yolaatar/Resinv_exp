@@ -192,10 +192,17 @@ def main():
 
     for img_path in images:
         img_name = img_path.stem
-        print(f"\n[{img_name}]")
-
-        img_orig = np.array(Image.open(img_path).convert("L"))
         out_dir = args.output_dir / args.model_name / img_name / "predictions"
+
+        if out_dir.exists() and all(
+            (out_dir / f"{img_name}_{px_tag(px)}_seg-axon.png").exists()
+            for px in args.px_sizes
+        ):
+            print(f"\n[{img_name}] skipped (already done)")
+            continue
+
+        print(f"\n[{img_name}]")
+        img_orig = np.array(Image.open(img_path).convert("L"))
         out_dir.mkdir(parents=True, exist_ok=True)
 
         for px in args.px_sizes:

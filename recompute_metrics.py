@@ -216,12 +216,16 @@ def main():
                         help="Parallel workers (default: min(cpu_count, 32))")
     parser.add_argument("--gt-only", action="store_true",
                         help="Skip images where no GT mask is found (all labels fall back to pred)")
+    parser.add_argument("--models", nargs="*", default=None,
+                        help="Only process these model names (e.g. --models da5 da5_multires)")
     args = parser.parse_args()
 
     for model_dir in sorted(args.results_dir.iterdir()):
         if not model_dir.is_dir():
             continue
         model_name = model_dir.name
+        if args.models and model_name not in args.models:
+            continue
         print(f"\n{'='*60}\nModel: {model_name} — {args.workers} workers")
 
         img_dirs = sorted([d for d in model_dir.iterdir() if d.is_dir()])
