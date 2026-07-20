@@ -49,11 +49,16 @@ from skimage.transform import resize
 
 Image.MAX_IMAGE_PIXELS = None
 
-# Same 16 pixel sizes as the existing ADS model evaluation
+# 22 pixel sizes: original 16 + upsampling extrapolation (1–2 nm) + coarse extrapolation (20–50 nm)
 PX_SIZES = [
+    # upsampling extrapolation
+    0.001, 0.0015, 0.002,
+    # original 16 sizes (2.36–16 nm)
     0.00236, 0.0027058, 0.0032614, 0.003931, 0.004738, 0.00493,
     0.0057108, 0.0068833, 0.0082966, 0.01, 0.0108148, 0.0116961,
     0.0126491, 0.0136798, 0.0147945, 0.016,
+    # coarse extrapolation
+    0.020, 0.030, 0.050,
 ]
 
 # Multi-class label map (must match prepare_dataset_*.py)
