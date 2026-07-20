@@ -175,7 +175,7 @@ def main():
     )
     predictor.initialize_from_trained_model_folder(
         str(args.model_dir),
-        use_folds=("all",),
+        use_folds=(0,),
         checkpoint_name=args.checkpoint,
     )
     print("Model loaded.")
