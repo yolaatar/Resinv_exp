@@ -8,7 +8,7 @@
 
 set -e
 
-DATA_DIR="${HOME}/tem2_gt_data"
+DATA_DIR="${HOME}/resinv_exp/data/TEM2"
 NNUNET_RESULTS="${HOME}/nnunet_results"
 OUTPUT_DIR="${HOME}/resinv_exp/results_nnunet_tem2"
 SCRIPTS_DIR="${HOME}/resinv_exp/scripts/training"
@@ -27,8 +27,9 @@ CUDA_VISIBLE_DEVICES=0 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
     --model-name witness \
     --data-dir "${DATA_DIR}" \
     --original-px 0.00493 \
-    --output-dir "${OUTPUT_DIR}" \
+    --subjects sub-370 sub-372 sub-373C sub-374 sub-375 \
     --gt-only \
+    --output-dir "${OUTPUT_DIR}" \
     --gpu-id 0 \
     2>&1 | tee ~/output_eval_tem2_witness.log
 
@@ -39,8 +40,9 @@ CUDA_VISIBLE_DEVICES=0 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
     --model-name multires \
     --data-dir "${DATA_DIR}" \
     --original-px 0.00493 \
-    --output-dir "${OUTPUT_DIR}" \
+    --subjects sub-370 sub-372 sub-373C sub-374 sub-375 \
     --gt-only \
+    --output-dir "${OUTPUT_DIR}" \
     --gpu-id 0 \
     2>&1 | tee ~/output_eval_tem2_multires.log
 
