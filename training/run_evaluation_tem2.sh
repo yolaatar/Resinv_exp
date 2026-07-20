@@ -8,12 +8,10 @@
 
 set -e
 
-DATA_DIR="${HOME}/duke/temp/yolaatar/resinv_exp/data/TEM2/001350"
-BASE_DIR="${HOME}/duke/temp/yolaatar/nnunet_resinv"
-OUTPUT_DIR="${HOME}/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2"
+DATA_DIR="${HOME}/tem2_gt_data"
+NNUNET_RESULTS="${HOME}/nnunet_results"
+OUTPUT_DIR="${HOME}/resinv_exp/results_nnunet_tem2"
 SCRIPTS_DIR="${HOME}/resinv_exp/scripts/training"
-
-export nnUNet_results="${BASE_DIR}/nnUNet_results"
 
 mkdir -p "${OUTPUT_DIR}"
 
@@ -25,7 +23,7 @@ echo "======================================================"
 echo ""
 echo "=== Model 1: witness ==="
 CUDA_VISIBLE_DEVICES=0 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
-    --model-dir "${nnUNet_results}/Dataset001_TEM_witness/nnUNetTrainer__nnUNetPlans__2d" \
+    --model-dir "${NNUNET_RESULTS}/Dataset001_TEM_witness/nnUNetTrainer__nnUNetPlans__2d" \
     --model-name witness \
     --data-dir "${DATA_DIR}" \
     --original-px 0.00493 \
@@ -36,7 +34,7 @@ CUDA_VISIBLE_DEVICES=0 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
 echo ""
 echo "=== Model 2: multires ==="
 CUDA_VISIBLE_DEVICES=0 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
-    --model-dir "${nnUNet_results}/Dataset002_TEM_multires/nnUNetTrainer__nnUNetPlans__2d" \
+    --model-dir "${NNUNET_RESULTS}/Dataset002_TEM_multires/nnUNetTrainer__nnUNetPlans__2d" \
     --model-name multires \
     --data-dir "${DATA_DIR}" \
     --original-px 0.00493 \
