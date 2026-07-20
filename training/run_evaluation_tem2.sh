@@ -28,6 +28,7 @@ CUDA_VISIBLE_DEVICES=0 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
     --data-dir "${DATA_DIR}" \
     --original-px 0.00493 \
     --output-dir "${OUTPUT_DIR}" \
+    --gt-only \
     --gpu-id 0 \
     2>&1 | tee ~/output_eval_tem2_witness.log
 
@@ -39,6 +40,7 @@ CUDA_VISIBLE_DEVICES=0 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
     --data-dir "${DATA_DIR}" \
     --original-px 0.00493 \
     --output-dir "${OUTPUT_DIR}" \
+    --gt-only \
     --gpu-id 0 \
     2>&1 | tee ~/output_eval_tem2_multires.log
 

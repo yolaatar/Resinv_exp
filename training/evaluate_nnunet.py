@@ -156,6 +156,8 @@ def main():
                         help="Only evaluate images from these subjects (e.g. sub-370 sub-372)")
     parser.add_argument("--max-images", type=int, default=None,
                         help="Cap number of images evaluated (random sample, seed=42)")
+    parser.add_argument("--gt-only", action="store_true",
+                        help="Skip images with no GT mask in derivatives/labels/")
     args = parser.parse_args()
 
     from nnunetv2.inference.predict_from_raw_data import nnUNetPredictor
@@ -185,6 +187,15 @@ def main():
         images = [p for p in images if p.stem in args.images]
     if args.subjects:
         images = [p for p in images if p.stem.split("_")[0] in args.subjects]
+    if args.gt_only:
+        def has_gt(p: Path) -> bool:
+            subject = p.parent.parent.name
+            gt_dir = args.data_dir / "derivatives" / "labels" / subject / "micr"
+            return any(gt_dir.glob(f"{p.stem}_seg-*.png"))
+        before = len(images)
+        images = [p for p in images if has_gt(p)]
+        print(f"GT filter: {before} -> {len(images)} images with GT masks")
+
     if args.max_images and len(images) > args.max_images:
         random.seed(42)
         images = sorted(random.sample(images, args.max_images))
