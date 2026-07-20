@@ -3,7 +3,7 @@
 #
 # Models: witness + multires (models 1 and 2)
 # Native px: 0.00493 um/px — finer resolutions require upsampling
-# GPU: CUDA_VISIBLE_DEVICES=1
+# GPU: CUDA_VISIBLE_DEVICES=0
 # Logs: ~/output_eval_tem2_{model}.log
 
 set -e
@@ -24,7 +24,7 @@ echo "======================================================"
 
 echo ""
 echo "=== Model 1: witness ==="
-CUDA_VISIBLE_DEVICES=1 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
+CUDA_VISIBLE_DEVICES=0 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
     --model-dir "${nnUNet_results}/Dataset001_TEM_witness/nnUNetTrainer__nnUNetPlans__2d" \
     --model-name witness \
     --data-dir "${DATA_DIR}" \
@@ -35,7 +35,7 @@ CUDA_VISIBLE_DEVICES=1 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
 
 echo ""
 echo "=== Model 2: multires ==="
-CUDA_VISIBLE_DEVICES=1 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
+CUDA_VISIBLE_DEVICES=0 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
     --model-dir "${nnUNet_results}/Dataset002_TEM_multires/nnUNetTrainer__nnUNetPlans__2d" \
     --model-name multires \
     --data-dir "${DATA_DIR}" \

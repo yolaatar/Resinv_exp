@@ -5,7 +5,7 @@
 #   1. witness  — Dataset001, nnUNetTrainer
 #   2. multires — Dataset002, nnUNetTrainer
 #
-# GPU: CUDA_VISIBLE_DEVICES=1 (shows as cuda:0 inside scripts)
+# GPU: CUDA_VISIBLE_DEVICES=0 (shows as cuda:0 inside scripts)
 # Logs: ~/output_eval_{model}.log
 
 set -e
@@ -27,7 +27,7 @@ echo "======================================================"
 
 echo ""
 echo "=== Model 1: witness ==="
-CUDA_VISIBLE_DEVICES=1 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
+CUDA_VISIBLE_DEVICES=0 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
     --model-dir "${nnUNet_results}/Dataset001_TEM_witness/nnUNetTrainer__nnUNetPlans__2d" \
     --model-name witness \
     --data-dir "${DATA_DIR}" \
@@ -38,7 +38,7 @@ CUDA_VISIBLE_DEVICES=1 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
 
 echo ""
 echo "=== Model 2: multires ==="
-CUDA_VISIBLE_DEVICES=1 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
+CUDA_VISIBLE_DEVICES=0 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
     --model-dir "${nnUNet_results}/Dataset002_TEM_multires/nnUNetTrainer__nnUNetPlans__2d" \
     --model-name multires \
     --data-dir "${DATA_DIR}" \
