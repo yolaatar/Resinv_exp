@@ -206,6 +206,8 @@ def main():
                         help="Show native and resized panels side by side for each label")
     parser.add_argument("--out-suffix", type=str, default="",
                         help="Suffix appended to output filename, e.g. '_all' -> results_all.png")
+    parser.add_argument("--exclude-images", type=str, nargs="*", default=None,
+                        help="Image names to exclude from the plot (substring match)")
     args = parser.parse_args()
 
     model_dfs = []
@@ -214,6 +216,9 @@ def main():
         if args.models and model_name not in args.models:
             continue
         df = pd.read_csv(csv_path)
+        if args.exclude_images:
+            mask = df["image"].apply(lambda x: not any(ex in x for ex in args.exclude_images))
+            df = df[mask]
         model_dfs.append((model_name, df))
         out_name = f"results{args.out_suffix}.png"
         plot_single_model(
