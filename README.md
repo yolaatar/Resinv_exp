@@ -37,13 +37,20 @@ DA5 trainer adds low-resolution simulation augmentation during training (`Simula
 
 ## Pixel sizes evaluated
 
-16 log-spaced sizes from 2.36 nm to 16 nm/px:
+22 sizes total: 16 original log-spaced sizes (2.36–16 nm/px) plus extrapolation at both ends.
 
 ```
+# upsampling extrapolation
+0.001, 0.0015, 0.002,
+# original 16 sizes (2.36–16 nm)
 0.00236, 0.0027058, 0.0032614, 0.003931, 0.004738, 0.00493,
 0.0057108, 0.0068833, 0.0082966, 0.01, 0.0108148, 0.0116961,
-0.0126491, 0.0136798, 0.0147945, 0.016
+0.0126491, 0.0136798, 0.0147945, 0.016,
+# coarse extrapolation
+0.020, 0.030, 0.050
 ```
+
+The 6 extrapolation sizes were added to probe how far models hold up beyond their training range. TEM1 images at 1 nm/px are upsampled ~2.4x from native; at 50 nm/px they are downsampled to ~100x108 px.
 
 ---
 
