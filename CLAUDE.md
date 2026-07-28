@@ -22,11 +22,18 @@ Resolution invariance experiment: evaluates how well nnUNet axon/myelin segmenta
 - Scripts: `~/resinv_exp/scripts/`
 - TEM1 data: `~/resinv_exp/data/TEM1`
 - TEM2 data: `~/resinv_exp/data/TEM2`
-- Models (witness, multires): `~/nnunet_results/Dataset00{1,2}_TEM_*/nnUNetTrainer__nnUNetPlans__2d/`
+- Models (witness, multires): `~/nnunet_results/Dataset001_TEM_witness/` and `~/nnunet_results/Dataset002_TEM_multires/`
 - DA5 models: `~/nnunet_da5_models/`
-- TEM1 results: `~/resinv_exp/results_nnunet/`
-- TEM2 results: `~/resinv_exp/results_nnunet_tem2/`
 - venv: `~/resinv_exp/venv_resinv/`
+
+### Results (prediction masks, on tassan)
+- TEM1 predictions: `~/resinv_exp/results_nnunet/{model_name}/{image_name}/predictions/`
+- TEM2 predictions: `~/resinv_exp/results_nnunet_tem2/{model_name}/{image_name}/predictions/`
+- Metrics CSVs and plots (after recompute_metrics + plot_resinv): `~/resinv_exp/results_nnunet/{model_name}/results.csv`
+
+### Status (as of July 2026)
+- witness and multires evaluated at all 22 pixel sizes on TEM1 (test split) and TEM2 (10 GT images)
+- Metrics and plots not yet recomputed for the extended pixel sizes — run `recompute_metrics.py` then `plot_resinv.py` on tassan (or pull CSVs locally first)
 
 ## Running evaluation (tassan)
 ```bash
