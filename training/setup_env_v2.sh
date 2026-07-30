@@ -20,7 +20,8 @@ pip install pillow numpy scikit-image scikit-learn pandas matplotlib monai
 
 echo ""
 echo "=== Installed versions ==="
-python -c "import torch, nnunetv2; print('torch', torch.__version__); print('nnunetv2', nnunetv2.__version__)"
+pip show torch | grep -i '^Version'
+pip show nnunetv2 | grep -i '^Version'
 python -c "import torch; print('CUDA available:', torch.cuda.is_available())"
 
 echo ""
