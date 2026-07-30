@@ -1,5 +1,63 @@
 # Run commands
 
+## v2 retrains — nnUNet 2.8.1 (TEM1 multires + TEM1+TEM2 multires)
+
+Retrains model 2 (`multires`, Dataset002) and model 5 (`multires_tem12`, Dataset005) with
+nnunetv2==2.8.1 (now pinned in ADS, see axondeepseg/axondeepseg#996), following up on
+Armand's discussion (axondeepseg/axondeepseg#979) about the patch size jump between nnUNet
+versions (512x512 -> ~1024-1280 square on the same TEM data). Written to new dataset IDs
+(003, 006) so the original 2.2.1 checkpoints stay available for comparison.
+
+New in v2: the TEM1-only model's fold_0 no longer uses nnUNet's default random case split.
+`generate_splits_multires.py` overwrites `splits_final.json` with a group-aware split that
+keeps all resolution-duplicates of a source image together (same side of train/val), so
+there's no cross-resolution leakage and val gets a proportional mix of every pixel size.
+Not needed for the TEM1+TEM2 model, it trains on fold_all (no internal val split).
+
+### One-time setup (on tassan)
+
+```bash
+cd ~/resinv_exp/scripts && git pull
+bash ~/resinv_exp/scripts/training/setup_env_v2.sh
+```
+
+Creates `venv_resinv_v2` with nnunetv2==2.8.1 + torch (unpinned, matches ADS). Leaves
+`venv_resinv` (2.2.1) untouched. Check the printed torch/nnunetv2 versions and whether
+training actually needs any of the 3 old `venv_resinv` patches (polylr verbose arg,
+weights_only in trainer/predictor) before re-applying them, see below.
+
+### Launch both trainings overnight (on tassan)
+
+```bash
+source ~/resinv_exp/venv_resinv_v2/bin/activate
+bash ~/resinv_exp/scripts/training/run_overnight_v2.sh
+```
+
+| Model | Script | Dataset | Fold | GPU | Log |
+|-------|--------|---------|------|-----|-----|
+| TEM1 multires v2 | `train_multires_v2.sh` | Dataset003_TEM_multires_v2 | 0 | 0 | `~/output_multires_v2.log` |
+| TEM1+TEM2 multires v2 | `train_multires_full_v2.sh` | Dataset006_TEM12_multires_v2 | all | 1 | `~/output_multires_full_v2.log` |
+
+Each script runs dataset prep -> `nnUNetv2_plan_and_preprocess` -> (TEM1-only model only:
+group-aware split generation) -> `nnUNetv2_train`. Both tmux sessions (`multires_v2`,
+`multires_full_v2`) survive SSH disconnects:
+
+```bash
+tmux attach -t multires_v2
+tmux attach -t multires_full_v2
+```
+
+Checkpoints land in `~/duke/temp/yolaatar/nnunet_resinv_v2/nnUNet_results/`.
+
+### If training crashes with old PyTorch/nnUNet compat errors
+
+The old venv needed 3 sed patches for nnunetv2==2.2.1 (see "nnUNet 2.2.1 + PyTorch 2.10
+patches" below). If 2.8.1 hits the same errors, re-apply against `venv_resinv_v2` instead
+(same sed commands, swap `venv_resinv` -> `venv_resinv_v2` in the path). Check first, don't
+apply blind, these may already be fixed upstream.
+
+---
+
 ## Transfer scripts to tassan (on your Mac)
 
 ```bash
