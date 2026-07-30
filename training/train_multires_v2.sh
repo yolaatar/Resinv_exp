@@ -23,8 +23,8 @@ set -e
 
 DATASET_ID=3
 DATASET_NAME="Dataset003_TEM_multires_v2"
-DATA_DIR="${HOME}/duke/temp/yolaatar/resinv_exp/data/TEM1"
-BASE_DIR="${HOME}/duke/temp/yolaatar/nnunet_resinv_v2"
+DATA_DIR="${HOME}/resinv_exp/data/TEM1"
+BASE_DIR="${HOME}/resinv_exp/nnunet_resinv_v2"
 SCRIPTS_DIR="${HOME}/resinv_exp/scripts/training"
 
 export nnUNet_raw="${BASE_DIR}/nnUNet_raw"

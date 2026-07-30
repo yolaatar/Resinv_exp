@@ -19,9 +19,9 @@ set -e
 
 DATASET_ID=6
 DATASET_NAME="Dataset006_TEM12_multires_v2"
-TEM1_DIR="${HOME}/duke/temp/yolaatar/resinv_exp/data/TEM1"
-TEM2_DIR="${HOME}/duke/temp/yolaatar/resinv_exp/data/TEM2/001350"
-BASE_DIR="${HOME}/duke/temp/yolaatar/nnunet_resinv_v2"
+TEM1_DIR="${HOME}/resinv_exp/data/TEM1"
+TEM2_DIR="${HOME}/resinv_exp/data/TEM2/001350"
+BASE_DIR="${HOME}/resinv_exp/nnunet_resinv_v2"
 SCRIPTS_DIR="${HOME}/resinv_exp/scripts/training"
 
 export nnUNet_raw="${BASE_DIR}/nnUNet_raw"
