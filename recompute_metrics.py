@@ -30,7 +30,7 @@ Image.MAX_IMAGE_PIXELS = None
 
 TRAINING_PX = 0.00493
 ORIGINAL_PX = 0.0018625
-GT_LABELS = {"axon", "myelin"}
+GT_LABELS = {"axon", "myelin"}  # default; overridden by --gt-labels at runtime
 SKIP_LABELS = {"nuclei", "process", "axonmyelin"}
 
 
@@ -218,7 +218,14 @@ def main():
                         help="Skip images where no GT mask is found (all labels fall back to pred)")
     parser.add_argument("--models", nargs="*", default=None,
                         help="Only process these model names (e.g. --models da5 da5_multires)")
+    parser.add_argument("--gt-labels", nargs="*", default=None,
+                        help="Labels to compare against GT (default: axon myelin). "
+                             "Add uaxon when GT is available for unmyelinated axons.")
     args = parser.parse_args()
+
+    if args.gt_labels is not None:
+        global GT_LABELS
+        GT_LABELS = set(args.gt_labels)
 
     for model_dir in sorted(args.results_dir.iterdir()):
         if not model_dir.is_dir():
