@@ -47,7 +47,9 @@ tmux attach -t multires_v2
 tmux attach -t multires_full_v2
 ```
 
-Checkpoints land in `~/duke/temp/yolaatar/nnunet_resinv_v2/nnUNet_results/`.
+Checkpoints land in `~/resinv_exp/nnunet_resinv_v2/nnUNet_results/` (duke wasn't writable
+from this tassan session, so both training scripts were switched to local paths under
+`~/resinv_exp/data` and `~/resinv_exp/nnunet_resinv_v2`, not duke).
 
 ### If training crashes with old PyTorch/nnUNet compat errors
 
@@ -55,6 +57,52 @@ The old venv needed 3 sed patches for nnunetv2==2.2.1 (see "nnUNet 2.2.1 + PyTor
 patches" below). If 2.8.1 hits the same errors, re-apply against `venv_resinv_v2` instead
 (same sed commands, swap `venv_resinv` -> `venv_resinv_v2` in the path). Check first, don't
 apply blind, these may already be fixed upstream.
+
+### Evaluation (on tassan)
+
+Both trainings are done. Evaluate on TEM1 test split and TEM2 GT images, same as the
+2.2.1 models, so results are directly comparable:
+
+```bash
+source ~/resinv_exp/venv_resinv_v2/bin/activate
+bash ~/resinv_exp/scripts/training/run_evaluation_v2.sh       # TEM1 test split
+bash ~/resinv_exp/scripts/training/run_evaluation_v2_tem2.sh  # TEM2 GT images
+```
+
+| Model | Dataset | Fold | Checkpoint |
+|-------|---------|------|------------|
+| multires_v2 | Dataset003_TEM_multires_v2 | 0 | checkpoint_best.pth |
+| multires_full_v2 | Dataset006_TEM12_multires_v2 | all | checkpoint_final.pth |
+
+`multires_full_v2` uses `checkpoint_final.pth`, not `checkpoint_best.pth` — fold_all has no
+internal validation split, so nnUNet never writes a "best" checkpoint.
+
+Caveat: `multires_full_v2` trains on 100% of TEM1 subjects (not the 80/20 split), so its
+TEM1-test-split numbers aren't a held-out eval for that model, same as the original
+Dataset005 full model. Still directly comparable to `multires_v2`'s numbers on the same
+images, just don't read it as generalization to unseen TEM1 data.
+
+Then recompute metrics and plot (same scripts as before, no changes needed):
+
+```bash
+cd ~/resinv_exp/scripts
+python recompute_metrics.py --results-dir ~/resinv_exp/results_nnunet \
+    --data-dir ~/resinv_exp/data/TEM1 --models multires_v2 multires_full_v2
+python recompute_metrics.py --results-dir ~/resinv_exp/results_nnunet_tem2 \
+    --data-dir ~/resinv_exp/data/TEM2 --models multires_v2 multires_full_v2 --gt-only
+
+python plot_resinv.py --results-dir ~/resinv_exp/results_nnunet \
+    --models multires_v2 multires_full_v2
+python plot_resinv.py --results-dir ~/resinv_exp/results_nnunet_tem2 \
+    --models multires_v2 multires_full_v2
+```
+
+Pull results locally with:
+
+```bash
+rsync -avz yolaa@tassan.neuro.polymtl.ca:~/resinv_exp/results_nnunet/ ./results_nnunet_v2/
+rsync -avz yolaa@tassan.neuro.polymtl.ca:~/resinv_exp/results_nnunet_tem2/ ./results_nnunet_tem2_v2/
+```
 
 ---
 

@@ -148,6 +148,8 @@ def main():
     parser.add_argument("--original-px", type=float, default=0.00236,
                         help="Native pixel size of the dataset (μm/px)")
     parser.add_argument("--checkpoint", type=str, default="checkpoint_best.pth")
+    parser.add_argument("--fold", type=str, default="0",
+                        help="Fold to load (e.g. 0, 1, or 'all' for fold_all models)")
     parser.add_argument("--gpu-id", type=int, default=0,
                         help="CUDA device index (0 = first visible GPU per CUDA_VISIBLE_DEVICES)")
     parser.add_argument("--images", type=str, nargs="*", default=None,
@@ -175,9 +177,10 @@ def main():
         verbose_preprocessing=False,
         allow_tqdm=False,
     )
+    fold = "all" if args.fold == "all" else int(args.fold)
     predictor.initialize_from_trained_model_folder(
         str(args.model_dir),
-        use_folds=(0,),
+        use_folds=(fold,),
         checkpoint_name=args.checkpoint,
     )
     print("Model loaded.")
