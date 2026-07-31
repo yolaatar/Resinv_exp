@@ -108,34 +108,41 @@ rsync -avz yolaa@tassan.neuro.polymtl.ca:~/resinv_exp/results_nnunet_tem2/ ./res
 
 `multires_full_v2` trains on fold_all using 100% of TEM1 + all annotated TEM2 subjects, so
 neither the TEM1 test split nor the TEM2 GT eval above is a true held-out result for it.
-`testset_TEM2` (local at `data/testset_TEM2/`, 10 subjects incl. 5 never used in any
-training: sub-366A, sub-367A, sub-368A, sub-369B, sub-371) fixes that — the overlapping
-subjects (sub-370/372/373C/374/375) use different sample images than training too.
+`~/resinv_exp/data/testset_armand_uaxon` on tassan (same physical dataset used for Armand's
+uaxon eval, 10 subjects incl. 5 never used in any training: sub-366A, sub-367A, sub-368A,
+sub-369B, sub-371) fixes that — the overlapping subjects (sub-370/372/373C/374/375) use
+different sample images than training too, so it's already there, no upload needed.
 
-Upload it once, then run all 7 models (witness, multires, da5, da5_multires, multires_full,
-multires_v2, multires_full_v2) against it in one script:
+Two GPUs, so split the 7 models (witness, multires, da5, da5_multires, multires_full,
+multires_v2, multires_full_v2) across both and run in parallel:
 
 ```bash
-rsync -avz "C:/Users/Youssef/Documents/Cours/ADS/data/testset_TEM2/" \
-    yolaa@tassan.neuro.polymtl.ca:~/resinv_exp/data/testset_TEM2/
-
-bash ~/resinv_exp/scripts/training/run_evaluation_testset_tem2.sh
+bash ~/resinv_exp/scripts/training/run_evaluation_testset_tem2_parallel.sh
 ```
 
-This script calls each venv's python directly (`venv_resinv` for the 2.2.1 models,
-`venv_resinv_v2` for the 2.8.1 ones), so it doesn't need activation and can run all 7 models
-in one pass. It skips any model whose directory isn't found rather than failing outright —
-`MULTIRES_FULL_V1_DIR` (Dataset005, multires_full/tem12 v1) in particular has no confirmed
-tassan path in this repo (only a Compute Canada Vulcan path exists in
+Launches two tmux sessions: `eval_testset_tem2_gpu0` (witness, multires, da5, da5_multires)
+and `eval_testset_tem2_gpu1` (multires_full, multires_v2, multires_full_v2). Each calls the
+underlying `run_evaluation_testset_tem2.sh <gpu-id> <model...>` which picks the right venv's
+python per model directly (`venv_resinv` for 2.2.1 models, `venv_resinv_v2` for 2.8.1 ones)
+so no activation is needed. It skips any model whose directory isn't found rather than
+failing outright — `MULTIRES_FULL_V1_DIR` (Dataset005, multires_full/tem12 v1) in particular
+has no confirmed tassan path in this repo (only a Compute Canada Vulcan path exists in
 `slurm_eval_multires_full.sh`), so check/fix that path first if you want that model included.
 
-Then:
+Logs: `~/output_eval_testset_tem2_{model}.log`. Then:
 
 ```bash
 python recompute_metrics.py --results-dir ~/resinv_exp/results_nnunet_testset_tem2 \
-    --data-dir ~/resinv_exp/data/testset_TEM2 --gt-only
+    --data-dir ~/resinv_exp/data/testset_armand_uaxon --gt-only
 python plot_resinv.py --results-dir ~/resinv_exp/results_nnunet_testset_tem2
 ```
+
+### TEM1 test split (fold_0 model)
+
+`multires_v2` is the only new model trained on fold_0, so it's the only one that gets a true
+held-out result from the TEM1 test split. Already covered by `run_evaluation_v2.sh` above —
+it also runs `multires_full_v2` on TEM1, but remember that one isn't held-out (100% of TEM1
+subjects went into its training).
 
 ---
 
