@@ -104,6 +104,39 @@ rsync -avz yolaa@tassan.neuro.polymtl.ca:~/resinv_exp/results_nnunet/ ./results_
 rsync -avz yolaa@tassan.neuro.polymtl.ca:~/resinv_exp/results_nnunet_tem2/ ./results_nnunet_tem2_v2/
 ```
 
+### Held-out TEM2 test set (real generalization check for multires_full_v2)
+
+`multires_full_v2` trains on fold_all using 100% of TEM1 + all annotated TEM2 subjects, so
+neither the TEM1 test split nor the TEM2 GT eval above is a true held-out result for it.
+`testset_TEM2` (local at `data/testset_TEM2/`, 10 subjects incl. 5 never used in any
+training: sub-366A, sub-367A, sub-368A, sub-369B, sub-371) fixes that — the overlapping
+subjects (sub-370/372/373C/374/375) use different sample images than training too.
+
+Upload it once, then run all 7 models (witness, multires, da5, da5_multires, multires_full,
+multires_v2, multires_full_v2) against it in one script:
+
+```bash
+rsync -avz "C:/Users/Youssef/Documents/Cours/ADS/data/testset_TEM2/" \
+    yolaa@tassan.neuro.polymtl.ca:~/resinv_exp/data/testset_TEM2/
+
+bash ~/resinv_exp/scripts/training/run_evaluation_testset_tem2.sh
+```
+
+This script calls each venv's python directly (`venv_resinv` for the 2.2.1 models,
+`venv_resinv_v2` for the 2.8.1 ones), so it doesn't need activation and can run all 7 models
+in one pass. It skips any model whose directory isn't found rather than failing outright —
+`MULTIRES_FULL_V1_DIR` (Dataset005, multires_full/tem12 v1) in particular has no confirmed
+tassan path in this repo (only a Compute Canada Vulcan path exists in
+`slurm_eval_multires_full.sh`), so check/fix that path first if you want that model included.
+
+Then:
+
+```bash
+python recompute_metrics.py --results-dir ~/resinv_exp/results_nnunet_testset_tem2 \
+    --data-dir ~/resinv_exp/data/testset_TEM2 --gt-only
+python plot_resinv.py --results-dir ~/resinv_exp/results_nnunet_testset_tem2
+```
+
 ---
 
 ## Transfer scripts to tassan (on your Mac)
