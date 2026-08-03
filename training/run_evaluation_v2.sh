@@ -5,7 +5,7 @@
 #   1. multires_v2      — Dataset003, fold_0,   checkpoint_best.pth
 #   2. multires_full_v2 — Dataset006, fold_all, checkpoint_final.pth (no val split, no "best")
 #
-# GPU: CUDA_VISIBLE_DEVICES=0 (shows as cuda:0 inside scripts)
+# GPU: CUDA_VISIBLE_DEVICES=1 (shows as cuda:0 inside scripts)
 # Logs: ~/output_eval_{model}.log
 
 set -e
@@ -24,7 +24,7 @@ echo "======================================================"
 
 echo ""
 echo "=== Model 1: multires_v2 (fold_0) ==="
-CUDA_VISIBLE_DEVICES=0 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
+CUDA_VISIBLE_DEVICES=1 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
     --model-dir "${NNUNET_RESULTS}/Dataset003_TEM_multires_v2/nnUNetTrainer__nnUNetPlans__2d" \
     --model-name multires_v2 \
     --data-dir "${DATA_DIR}" \
@@ -37,7 +37,7 @@ CUDA_VISIBLE_DEVICES=0 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
 
 echo ""
 echo "=== Model 2: multires_full_v2 (fold_all) ==="
-CUDA_VISIBLE_DEVICES=0 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
+CUDA_VISIBLE_DEVICES=1 python "${SCRIPTS_DIR}/evaluate_nnunet.py" \
     --model-dir "${NNUNET_RESULTS}/Dataset006_TEM12_multires_v2/nnUNetTrainer__nnUNetPlans__2d" \
     --model-name multires_full_v2 \
     --data-dir "${DATA_DIR}" \
