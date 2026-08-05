@@ -61,8 +61,22 @@ PX_SIZES = [
     0.020, 0.030, 0.050,
 ]
 
-# Multi-class label map (must match prepare_dataset_*.py)
-LABEL_MAP = {1: "axon", 2: "myelin"}
+# Fallback label map, only used if dataset.json can't be read
+DEFAULT_LABEL_MAP = {1: "axon", 2: "myelin"}
+
+# Labels present in some models' dataset.json that we don't want written out
+# as prediction PNGs (not consumed downstream)
+LABEL_SKIP = {"nuclei", "process"}
+
+
+def load_label_map(model_dir: Path) -> dict[int, str]:
+    """Build {class_id: label_name} from the model's own dataset.json."""
+    dataset_json = model_dir / "dataset.json"
+    if not dataset_json.exists():
+        print(f"WARNING: {dataset_json} not found, falling back to {DEFAULT_LABEL_MAP}")
+        return DEFAULT_LABEL_MAP
+    labels = json.loads(dataset_json.read_text())["labels"]
+    return {v: k for k, v in labels.items() if k != "background" and k not in LABEL_SKIP}
 
 
 def resample(img: np.ndarray, scale: float) -> np.ndarray:
@@ -185,6 +199,9 @@ def main():
     )
     print("Model loaded.")
 
+    label_map = load_label_map(args.model_dir)
+    print(f"Label map : {label_map}")
+
     images = find_images(args.data_dir, split_path)
     if args.images:
         images = [p for p in images if p.stem in args.images]
@@ -231,7 +248,7 @@ def main():
             seg = predict(predictor, img_resampled)
             tag = px_tag(px)
 
-            for class_id, label in LABEL_MAP.items():
+            for class_id, label in label_map.items():
                 mask = (seg == class_id).astype(np.uint8) * 255
                 Image.fromarray(mask).save(out_dir / f"{img_name}_{tag}_seg-{label}.png")
 
