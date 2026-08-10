@@ -9,3 +9,4 @@ results_tem1/
 overlays/
 *.csv
 *.png
+*.pth

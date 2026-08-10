@@ -1,0 +1,14 @@
+{
+    "channel_names": {
+        "0": "TEM"
+    },
+    "labels": {
+        "background": 0,
+        "axon": 1,
+        "myelin": 2
+    },
+    "numTraining": 632,
+    "file_ending": ".png",
+    "name": "Dataset006_TEM12_multires_v2",
+    "description": "TEM1 (100%) + TEM2 (all annotated subjects) multi-resolution training dataset (v2, nnUNet 2.8.1 retrain). TEM1 native 0.00236 \u03bcm/px, TEM2 native 0.00493 \u03bcm/px. Each image duplicated at extra resolutions [0.007, 0.01, 0.016] \u03bcm/px. No held-out test split \u2014 both datasets used fully for training, fold_all."
+}
