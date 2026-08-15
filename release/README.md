@@ -16,20 +16,30 @@ model_seg_tem-multires_light/
   plans.json
   fold_all/
     checkpoint_final.pth
+    dataset_fingerprint.json
+    debug.json
+    training_log_2026_7_30_20_06_27.txt
 ```
+
+`dataset_fingerprint.json`, `debug.json`, and the training log were pulled
+from tassan (`~/resinv_exp/nnunet_resinv_v2/nnUNet_results/Dataset006_TEM12_multires_v2/`,
+note `dataset_fingerprint.json` lives at the dataset root, the other two are
+under `nnUNetTrainer__nnUNetPlans__2d/fold_all/`) for parity with other
+packaged ADS models. Not required for inference
+(`nnUNetPredictor.initialize_from_trained_model_folder` only reads
+`dataset.json`, `plans.json`, and the checkpoint).
 
 ## What's missing before this is publish-ready
 
-- `dataset_fingerprint.json`, `debug.json`, `training_log_*.txt` — nnU-Net
-  writes these alongside the checkpoint but they weren't pulled from tassan.
-  Not required for inference (`nnUNetPredictor.initialize_from_trained_model_folder`
-  only reads `dataset.json`, `plans.json`, and the checkpoint), but every other
-  packaged ADS model ships them, so pull them from
-  `~/resinv_exp/nnunet_resinv_v2/nnUNet_results/Dataset006_TEM12_multires_v2/nnUNetTrainer__nnUNetPlans__2d/fold_all/`
-  on tassan for parity.
 - No `_ensemble` variant — this is fold_all only (single fold), so only a
   `_light` package makes sense, same as `model_seg_generalist_light`.
-- Not zipped or uploaded anywhere yet.
+- Add the `model_cards.yaml` entry below to `AxonDeepSeg/model_cards.yaml`.
+
+## Published
+
+- Repo: https://github.com/axondeepseg/model_seg_tem-multires
+- Release: https://github.com/axondeepseg/model_seg_tem-multires/releases/tag/v1.0
+- Asset: https://github.com/axondeepseg/model_seg_tem-multires/releases/download/v1.0/model_seg_tem-multires_light.zip
 
 ## Naming
 
@@ -40,13 +50,12 @@ it out either; keeps `TEM` (modality) and `multires` (the property that
 actually distinguishes this checkpoint: trained across multiple pixel sizes,
 robust to resolution).
 
-## To actually publish (next repo)
+## To actually publish
 
-1. Pull the missing files above, drop them into the matching folders here.
-2. Zip `model_seg_tem-multires_light/`, create a GitHub release on the target
-   model repo (new repo, e.g. `axondeepseg/model_seg_tem-multires`), upload
-   the zip as a release asset.
-3. Add a new entry to `AxonDeepSeg/model_cards.yaml`:
+1. ~~Pull the missing files, drop them into the matching folders here.~~ Done.
+2. ~~Zip `model_seg_tem-multires_light/`, create a GitHub release, upload the
+   zip as a release asset.~~ Done, see Published above.
+3. Add this entry to `AxonDeepSeg/model_cards.yaml` (not yet done):
 
 ```yaml
 tem-multires:
@@ -57,7 +66,7 @@ tem-multires:
   model-info: TEM axon/myelin segmentation, multi-resolution training (TEM1+TEM2), nnUNet 2.8.1.
   training-data: TEM1 (NeuroPoly, 20 subjects) + TEM2 (DANDI:001350, all annotated subjects), trained at multiple pixel sizes for resolution invariance.
   weights:
-    single_fold: <release URL>
+    single_fold: https://github.com/axondeepseg/model_seg_tem-multires/releases/download/v1.0/model_seg_tem-multires_light.zip
     ensemble: ~
 ```
 
