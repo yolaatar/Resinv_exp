@@ -444,3 +444,46 @@ GT subjects: sub-370, sub-372, sub-373C, sub-374, sub-375 (10 images total)
 ```bash
 mkdir -p /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2/{witness,multires} && ssh "yolaa@ge.polymtl.ca@joplin.neuro.polymtl.ca" "cd ~/duke/temp/yolaatar/resinv_exp/results_nnunet_tem2 && find witness multires -type f -name '*.png' \( -path '*/sub-370*' -o -path '*/sub-372*' -o -path '*/sub-373C*' -o -path '*/sub-374*' -o -path '*/sub-375*' \) | tar -cf - -T -" | tar -C /Users/yolaatar/Developer/ADS/resinv/results_nnunet_tem2 -xf -
 ```
+
+## Publishing multires_full_v2 as an ADS model (2026-08-15)
+
+Packaged the `multires_full_v2` checkpoint (Dataset006_TEM12_multires_v2, fold_all,
+nnUNet 2.8.1) as `model_seg_tem-multires` and released it. Staging notes, package
+layout, and the model_cards.yaml snippet live in `release/README.md`.
+
+### Pull nnU-Net metadata files from tassan (dataset_fingerprint.json, debug.json, training log)
+
+Auth on tassan uses your NeuroPoly account (`yolaa`), not the Alliance Canada one
+(`yolaatar`) — `yolaa@tassan.neuro.polymtl.ca`. `dataset_fingerprint.json` lives at the
+dataset root, `debug.json` and `training_log_*.txt` are under
+`nnUNetTrainer__nnUNetPlans__2d/fold_all/`.
+
+```powershell
+scp yolaa@tassan.neuro.polymtl.ca:~/resinv_exp/nnunet_resinv_v2/nnUNet_results/Dataset006_TEM12_multires_v2/nnUNetTrainer__nnUNetPlans__2d/dataset_fingerprint.json "release\model_seg_tem-multires_light\fold_all\"
+scp yolaa@tassan.neuro.polymtl.ca:~/resinv_exp/nnunet_resinv_v2/nnUNet_results/Dataset006_TEM12_multires_v2/nnUNetTrainer__nnUNetPlans__2d/fold_all/debug.json "release\model_seg_tem-multires_light\fold_all\"
+scp yolaa@tassan.neuro.polymtl.ca:~/resinv_exp/nnunet_resinv_v2/nnUNet_results/Dataset006_TEM12_multires_v2/nnUNetTrainer__nnUNetPlans__2d/fold_all/training_log_2026_7_30_20_06_27.txt "release\model_seg_tem-multires_light\fold_all\"
+```
+
+### Zip and release
+
+```powershell
+Compress-Archive -Path release\model_seg_tem-multires_light -DestinationPath release\model_seg_tem-multires_light.zip
+gh release create v1.0 release\model_seg_tem-multires_light.zip --repo axondeepseg/model_seg_tem-multires --title "v1.0" --notes "TEM axon/myelin segmentation, multi-resolution training (TEM1+TEM2), nnUNet 2.8.1, fold_all."
+```
+
+Repo: https://github.com/axondeepseg/model_seg_tem-multires
+Release/asset: https://github.com/axondeepseg/model_seg_tem-multires/releases/tag/v1.0
+
+### Verify the package loads and predicts (nnunet_gpu conda env)
+
+Confirmed working: `nnUNetPredictor.initialize_from_trained_model_folder` loads the
+package (3 seg heads, labels background/axon/myelin), and inference on a TEM1 sample
+(`sub-nyuMouse07_sample-0001_TEM.png`) produced a sane label distribution (~56% bg,
+24% axon, 20% myelin), no degenerate all-background output.
+
+### ADS model_cards.yaml PR
+
+Added a `multires-TEM` entry to `AxonDeepSeg/model_cards.yaml` in the `axondeepseg_tem`
+repo (branch `add-tem-multires-model`), PR opened. See `release/README.md` for the exact
+YAML block.
+```
