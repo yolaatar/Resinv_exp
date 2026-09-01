@@ -92,6 +92,30 @@ def px_tag(px: float) -> str:
     return f"px{px:.7g}um"
 
 
+def load_original_px(img_path: Path, fallback: float) -> float:
+    """Native pixel size for one image: read from a BIDS sidecar JSON
+    ("PixelSize" field) if present, otherwise fall back to the dataset-wide
+    --original-px value. Needed for datasets like TEM3 that mix multiple
+    native pixel sizes across images. Tries two sidecar naming conventions
+    seen in the wild: one JSON per image (same stem, .json extension) and
+    one JSON per subject (e.g. sub-78_TEM.json covering all of sub-78's
+    samples)."""
+    subject = img_path.stem.split("_")[0]
+    suffix = img_path.stem.split("_")[-1]  # e.g. "TEM"
+    candidates = [
+        img_path.with_suffix(".json"),
+        img_path.parent / f"{subject}_{suffix}.json",
+    ]
+    for sidecar in candidates:
+        if sidecar.exists():
+            try:
+                return float(json.loads(sidecar.read_text())["PixelSize"][0])
+            except (KeyError, IndexError, ValueError, json.JSONDecodeError) as e:
+                print(f"WARNING: couldn't read PixelSize from {sidecar} ({e}), trying next candidate")
+    print(f"WARNING: no pixel-size sidecar found for {img_path.name} (tried {[str(c) for c in candidates]}), using fallback {fallback}")
+    return fallback
+
+
 def find_images(data_dir: Path, split_path: Path | None) -> list[Path]:
     try:
         split_exists = split_path is not None and split_path.exists()
@@ -222,7 +246,7 @@ def main():
 
     print(f"\nModel     : {args.model_name}")
     print(f"Images    : {len(images)}")
-    print(f"Native px : {args.original_px} μm/px")
+    print(f"Native px : {args.original_px} μm/px (fallback; per-image sidecar JSON used when present)")
     print(f"Px sizes  : {args.px_sizes}")
     print(f"Output    : {args.output_dir}")
 
@@ -237,12 +261,13 @@ def main():
             print(f"\n[{img_name}] skipped (already done)")
             continue
 
-        print(f"\n[{img_name}]")
+        original_px = load_original_px(img_path, args.original_px)
+        print(f"\n[{img_name}]  native px: {original_px} μm/px")
         img_orig = np.array(Image.open(img_path).convert("L"))
         out_dir.mkdir(parents=True, exist_ok=True)
 
         for px in args.px_sizes:
-            scale = args.original_px / px
+            scale = original_px / px
             img_resampled = img_orig if abs(scale - 1.0) < 1e-4 else resample(img_orig, scale)
 
             seg = predict(predictor, img_resampled)
