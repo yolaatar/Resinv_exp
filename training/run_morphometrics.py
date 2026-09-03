@@ -32,12 +32,19 @@ Usage (on tassan, after activating the venv that has AxonDeepSeg installed):
 import argparse
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from PIL import Image
 from skimage.transform import resize
+
+sys.path.insert(0, str(Path(__file__).parent))
+from evaluate_nnunet import load_original_px  # noqa: E402 -- reuse the same per-image
+# sidecar-JSON pixel-size lookup as evaluate_nnunet.py, so datasets with mixed
+# native pixel sizes (e.g. TEM3) resample raw images by the correct per-image
+# value instead of one dataset-wide --original-px.
 
 Image.MAX_IMAGE_PIXELS = None
 
@@ -63,7 +70,7 @@ def load_gray(path: Path) -> np.ndarray:
     return np.array(Image.open(path).convert("L"))
 
 
-def prep_inputs(results_dir: Path, data_dir: Path, original_px: float) -> dict[float, list[Path]]:
+def prep_inputs(results_dir: Path, data_dir: Path, original_px_fallback: float) -> dict[float, list[Path]]:
     """Regenerate raw-image + axonmyelin files; return {px: [stem_paths]}."""
     px_to_stems: dict[float, list[Path]] = {}
 
@@ -79,6 +86,7 @@ def prep_inputs(results_dir: Path, data_dir: Path, original_px: float) -> dict[f
             print(f"  WARNING: no raw source image for {img_name} at {raw_src}, skipping")
             continue
         raw_native = load_gray(raw_src)
+        original_px = load_original_px(raw_src, original_px_fallback)
 
         axon_files = sorted(pred_dir.glob("*_seg-axon.png"))
         px_set = sorted({parse_px(p.name) for p in axon_files if parse_px(p.name) is not None})
@@ -179,7 +187,8 @@ def main():
                          help="e.g. ~/resinv_exp/results_armand_uaxon/armand_uaxon")
     parser.add_argument("--data-dir", type=Path, required=True,
                          help="Raw testset dir, e.g. ~/resinv_exp/data/testset_armand_uaxon")
-    parser.add_argument("--original-px", type=float, default=0.00493)
+    parser.add_argument("--original-px", type=float, default=0.00493,
+                         help="Fallback native pixel size (um/px); per-image sidecar JSON is used when present")
     parser.add_argument("--model-name", type=str, default="armand_uaxon")
     parser.add_argument("--cli-bin", type=str, default="axondeepseg_morphometrics")
     parser.add_argument("--skip-prep", action="store_true", help="Skip regenerating raw/axonmyelin files")
