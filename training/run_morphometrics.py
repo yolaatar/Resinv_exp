@@ -119,19 +119,21 @@ def prep_inputs(results_dir: Path, data_dir: Path, original_px_fallback: float) 
 
 
 def run_cli(px_to_stems: dict[float, list[Path]], cli_bin: str) -> None:
+    # --allow-large-images requires axondeepseg's yl/allow-large-images-morphometrics
+    # branch (PR #1007, fixes axondeepseg/axondeepseg#990) -- not on master yet.
     for px in sorted(px_to_stems):
         stems = px_to_stems[px]
         stem_args = [str(p) for p in stems]
 
         print(f"\n=== px={px:.7g} um  ({len(stems)} images)  myelinated ===")
         subprocess.run(
-            [cli_bin, "-i", *stem_args, "-s", str(px), "-a", "circle"],
+            [cli_bin, "-i", *stem_args, "-s", str(px), "-a", "circle", "--allow-large-images"],
             check=True,
         )
 
         print(f"=== px={px:.7g} um  ({len(stems)} images)  unmyelinated ===")
         subprocess.run(
-            [cli_bin, "-i", *stem_args, "-s", str(px), "-a", "circle", "-u"],
+            [cli_bin, "-i", *stem_args, "-s", str(px), "-a", "circle", "-u", "--allow-large-images"],
             check=True,
         )
 
