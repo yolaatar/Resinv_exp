@@ -20,13 +20,15 @@ def main():
                      help="e.g. ~/resinv_exp/results_tem3/armand_uaxon")
     ap.add_argument("--out", type=Path, default=None,
                      help="Default: {results-dir}/axon_counts_all.csv")
+    ap.add_argument("--pattern", type=str, default="axon_counts.csv",
+                     help="Per-image filename to glob for under */predictions/ (default: axon_counts.csv)")
     args = ap.parse_args()
 
     out_path = args.out or (args.results_dir / "axon_counts_all.csv")
 
-    files = sorted(args.results_dir.glob("*/predictions/axon_counts.csv"))
+    files = sorted(args.results_dir.glob(f"*/predictions/{args.pattern}"))
     if not files:
-        print(f"No axon_counts.csv files found under {args.results_dir}")
+        print(f"No {args.pattern} files found under {args.results_dir}")
         return
 
     dfs = [pd.read_csv(f) for f in files]
