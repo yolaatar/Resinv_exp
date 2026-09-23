@@ -6,8 +6,8 @@ Resolution invariance experiment: evaluates how well nnUNet axon/myelin segmenta
 ## Models
 | Name | Dataset | Trainer | Description |
 |---|---|---|---|
-| `witness` | TEM1 only | standard | Single-res baseline, 4.9 nm/px, fold_0 |
-| `multires` | TEM1 + TEM2 | standard | Multi-res training, fold_0 |
+| `witness` | TEM1 only | standard | Single-res baseline, trained at 2.36 nm/px (TEM1 native), fold_0 |
+| `multires` | TEM1 only | standard | Multi-res training at 2.36 + 7 + 10 + 16 nm/px, fold_0 |
 | `da5` | TEM1 only | DA5 | Single-res + DA5 augmentation, fold_0 |
 | `da5_multires` | TEM1 + TEM2 | DA5 | Multi-res + DA5 augmentation, fold_0 |
 

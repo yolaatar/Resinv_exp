@@ -12,7 +12,7 @@ TEM images are acquired at varying resolutions across labs and datasets. A model
 
 | # | Name | Dataset | Trainer | Description |
 |---|---|---|---|---|
-| 1 | `witness` | TEM1 only | standard | Single-resolution baseline, trained at 4.9 nm/px |
+| 1 | `witness` | TEM1 only | standard | Single-resolution baseline, trained at 2.36 nm/px (TEM1 native, see prepare_dataset_witness.py) |
 | 2 | `multires` | TEM1 + TEM2 at 4 pixel sizes | standard | Multi-resolution training |
 | 3 | `da5` | TEM1 only | DA5 | Single-resolution with DA5 augmentation trainer |
 | 4 | `da5_multires` | TEM1 + TEM2 at 4 pixel sizes | DA5 | Multi-resolution with DA5 augmentation trainer |
