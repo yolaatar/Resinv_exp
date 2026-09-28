@@ -2,7 +2,7 @@
 # Run a list of trainings one after the other on one GPU.
 #
 # Usage: bash run_queue.sh <gpu> <model_key>:<fold> [<model_key>:<fold> ...]
-#   e.g. bash run_queue.sh 0 witness:0 witness:1 da5:0
+#   e.g. bash run_queue.sh 0 control:0 control:1 da5:0
 #
 # A failed job is logged and the queue moves on, so one crash doesn't idle the GPU all night.
 # Summary at the end, and in ~/resinv_exp/nnunet_paper/logs/queue_gpu<gpu>.log.

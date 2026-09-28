@@ -4,7 +4,7 @@ Prepare an nnUNet raw dataset for the paper retrain batch (nnUNet 2.8.1).
 
 One script for every training-set variant, so all of them are built exactly the same way:
 same subject split, same interpolation, same case naming. It generalizes
-prepare_dataset_multires_v2.py: pass no --extra-px for a single-resolution (witness) dataset,
+prepare_dataset_multires_v2.py: pass no --extra-px for a single-resolution (control) dataset,
 or a list of coarser pixel sizes for a multi-resolution one.
 
 Each training image is kept at its native pixel size, plus one downsampled copy per
@@ -64,14 +64,12 @@ def find_gt(data_dir: Path, img_name: str, label: str) -> Path | None:
     return p if p.exists() else None
 
 
-def make_multiclass_label(axon_path: Path | None, myelin_path: Path | None,
-                          h: int, w: int) -> np.ndarray:
-    """0=background, 1=axon, 2=myelin. Myelin overrides axon on overlap."""
+def make_multiclass_label(mask_paths: list[Path], h: int, w: int) -> np.ndarray:
+    """0 = background, then class i+1 for the i-th mask, painted in order (a later class
+    overrides an earlier one on overlap, so with the default order myelin overrides axon)."""
     label = np.zeros((h, w), dtype=np.uint8)
-    if axon_path is not None:
-        label[np.array(Image.open(axon_path).convert("L")) > 0] = 1
-    if myelin_path is not None:
-        label[np.array(Image.open(myelin_path).convert("L")) > 0] = 2
+    for class_id, path in enumerate(mask_paths, start=1):
+        label[np.array(Image.open(path).convert("L")) > 0] = class_id
     return label
 
 
@@ -103,13 +101,16 @@ def main():
     parser.add_argument("--data-dir", type=Path, required=True)
     parser.add_argument("--nnunet-raw", type=Path, required=True)
     parser.add_argument("--dataset-id", type=int, required=True)
-    parser.add_argument("--dataset-name", required=True, help="e.g. Dataset101_TEM1_witness")
+    parser.add_argument("--dataset-name", required=True, help="e.g. Dataset101_TEM1_control")
     parser.add_argument("--original-px", type=float, default=0.00236,
                         help="Native pixel size of the source dataset in um/px (TEM1: 0.00236)")
     parser.add_argument("--extra-px", type=float, nargs="*", default=[],
                         help="Extra (coarser) pixel sizes in um/px. Empty = single resolution")
     parser.add_argument("--split-file", type=Path, default=None,
                         help="Subject split JSON (default: <data-dir>/subject_split.json)")
+    parser.add_argument("--labels", nargs="+", default=["axon", "myelin"],
+                        help="Classes to train, in label-id order (1, 2, ...). TEM2 models add uaxon. "
+                             "Masks are read from derivatives/labels/<sub>/micr/<img>_seg-<label>-manual.png")
     parser.add_argument("--overwrite", action="store_true",
                         help="Rebuild even if the dataset folder already has cases")
     args = parser.parse_args()
@@ -142,14 +143,15 @@ def main():
     n_ok, n_images, skipped = 0, 0, []
     for img_path in train_images:
         img_name = img_path.stem
-        axon_gt = find_gt(args.data_dir, img_name, "axon")
-        myelin_gt = find_gt(args.data_dir, img_name, "myelin")
-        if axon_gt is None and myelin_gt is None:
+        masks = [find_gt(args.data_dir, img_name, lab) for lab in args.labels]
+        # Every requested class must be labelled: an image missing e.g. its uaxon mask would
+        # otherwise teach the model that the class is absent there.
+        if any(m is None for m in masks):
             skipped.append(img_name)
             continue
 
         img_arr = np.array(Image.open(img_path).convert("L"))
-        label_arr = make_multiclass_label(axon_gt, myelin_gt, *img_arr.shape[:2])
+        label_arr = make_multiclass_label(masks, *img_arr.shape[:2])
 
         for px in all_px:
             if px is None:
@@ -168,11 +170,11 @@ def main():
             print(f"  {n_images}/{len(train_images)} images done")
 
     print(f"\nPrepared: {n_ok} cases ({n_images} images x {len(all_px)} resolutions)")
-    print(f"Skipped (no GT): {len(skipped)} {skipped if skipped else ''}")
+    print(f"Skipped (missing a requested mask): {len(skipped)} {skipped if skipped else ''}")
 
     dataset_json = {
         "channel_names": {"0": "TEM"},
-        "labels": {"background": 0, "axon": 1, "myelin": 2},
+        "labels": {"background": 0, **{lab: i for i, lab in enumerate(args.labels, start=1)}},
         "numTraining": n_ok,
         "file_ending": ".png",
         "name": args.dataset_name,
@@ -186,6 +188,7 @@ def main():
             "source_dir": str(args.data_dir),
             "original_px_um": args.original_px,
             "extra_px_um": sorted(args.extra_px),
+            "labels": args.labels,
             "n_source_images": n_images,
             "train_subjects": train_subjects,
             "test_subjects": test_subjects,

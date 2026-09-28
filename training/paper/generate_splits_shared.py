@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
 Write splits_final.json for a paper-batch dataset so that fold k holds out the SAME source
-images in every dataset (witness, multires4, multires8, ...).
+images in every dataset (control, multires4, multires8, ...).
 
 Why not generate_splits_multires.py: that one uses GroupKFold, which balances fold sizes
-greedily by group size. Witness groups have 1 case and multires groups have 4, so the two
-datasets can end up with different validation images for the same fold. Any witness vs
+greedily by group size. Control groups have 1 case and multires groups have 4, so the two
+datasets can end up with different validation images for the same fold. Any control vs
 multires gap would then partly reflect which images landed in val.
 
 Here the fold of each source image depends only on the image name and the seed: sort the
@@ -17,7 +17,7 @@ Usage (after nnUNetv2 preprocessing, before nnUNetv2_train):
     python generate_splits_shared.py \
         --nnunet-raw ~/resinv_exp/nnunet_paper/nnUNet_raw \
         --nnunet-preprocessed /tmp/yolaatar/nnunet_preprocessed_paper \
-        --dataset-name Dataset101_TEM1_witness
+        --dataset-name Dataset101_TEM1_control
 """
 
 import argparse

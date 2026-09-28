@@ -31,7 +31,7 @@ TEM2_TEST_DIR="${HOME}/resinv_exp/data/testset_armand_uaxon"
 source "${RESINV_VENV:-${HOME}/resinv_exp/venv_resinv_v2}/bin/activate"
 
 # Resolve dataset / trainer / plans from the training registry, so the two never disagree.
-eval "$(bash "${HERE}/train_paper.sh" --list | awk -v k="${MODEL_KEY}" '$1==k {print "DS_NAME="$2"; TRAINER="$3"; PLANS="$4}')"
+eval "$(bash "${HERE}/train_paper.sh" --list | awk -v k="${MODEL_KEY}" '$1==k {print "DS_NAME="$2"; TRAINER="$3"; PLANS="$4"; LABELS="$5}')"
 [ -n "${DS_NAME:-}" ] || { echo "Unknown model key ${MODEL_KEY}"; exit 1; }
 
 MODEL_DIR="${BASE}/nnUNet_results/${DS_NAME}/${TRAINER}__${PLANS}__2d"
@@ -54,9 +54,11 @@ CUDA_VISIBLE_DEVICES="${GPU}" python "${TRAINING_DIR}/evaluate_nnunet.py" \
     --output-dir "${RESULTS}/tem2test" --gpu-id 0 2>&1 | tee "${BASE}/logs/eval_${NAME}_tem2test.log"
 
 echo "=== ${NAME}: Dice vs GT ==="
+# TEM1 only labels axon and myelin (its unmyelinated axons are unannotated), so a TEM2 model's
+# uaxon output is not scored there. TEM2 is scored on every class the model predicts.
 python "${REPO_DIR}/recompute_metrics.py" --results-dir "${RESULTS}/tem1" \
-    --data-dir "${TEM1_DIR}" --models "${NAME}" --gt-only
+    --data-dir "${TEM1_DIR}" --models "${NAME}" --gt-only --gt-labels axon myelin
 python "${REPO_DIR}/recompute_metrics.py" --results-dir "${RESULTS}/tem2test" \
-    --data-dir "${TEM2_TEST_DIR}" --models "${NAME}" --gt-only
+    --data-dir "${TEM2_TEST_DIR}" --models "${NAME}" --gt-only --gt-labels ${LABELS//,/ }
 
 echo "Results: ${RESULTS}/tem1/${NAME}/results.csv and ${RESULTS}/tem2test/${NAME}/results.csv"

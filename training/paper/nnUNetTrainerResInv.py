@@ -5,7 +5,7 @@ resolution band follow the range of object scales it saw during training?).
 nnUNetTrainer's default SpatialTransform uses scaling=(0.7, 1.4) with p_scaling=0.2.
 In batchgeneratorsv2 larger scaling values mean SMALLER objects: a patch scaled by s shows
 objects at 1/s of their size, i.e. what they would look like at s times the pixel size.
-Witness (trained at 2.36 nm) therefore sees objects as if imaged between ~1.7 and ~3.3 nm,
+Control (trained at 2.36 nm) therefore sees objects as if imaged between ~1.7 and ~3.3 nm,
 which is roughly its measured robust band.
 
 These trainers change ONLY the scaling range (and, where needed, the crop that feeds it).
@@ -78,7 +78,7 @@ class nnUNetTrainerScaleAug(nnUNetTrainer):
 
 
 class nnUNetTrainerScaleAug2p5(nnUNetTrainerScaleAug):
-    """Objects down to 1/2.5 of their size: witness at 2.36 nm sees ~1.7 to ~5.9 nm equivalents."""
+    """Objects down to 1/2.5 of their size: control at 2.36 nm sees ~1.7 to ~5.9 nm equivalents."""
     SCALING = (0.7, 2.5)
 
 

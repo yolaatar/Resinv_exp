@@ -139,6 +139,17 @@ def recompute_image(img_dir: Path, model_name: str, data_dir: Path | None, gt_on
         print(f"  [{img_dir.name}] skipping — no GT found", flush=True)
         return pd.DataFrame()
 
+    # With --gt-only, a label that has no GT (e.g. uaxon predicted by a TEM2 model on TEM1,
+    # which doesn't annotate unmyelinated axons) must not be scored against the model's own
+    # prediction: that yields Dice = 1.0 at the reference pixel size and is meaningless.
+    if gt_only:
+        no_gt = [label for label, src in ref_sources.items() if src == "pred"]
+        for label in no_gt:
+            del ref_masks[label]
+        active_labels = [label for label in active_labels if label in ref_masks]
+        if no_gt:
+            print(f"  [{img_dir.name}] not scoring {no_gt}: no GT for these labels", flush=True)
+
     ref_shapes = {label: ref_masks[label].shape for label in ref_masks}
 
     # Pre-load all prediction files grouped by px to avoid redundant globs
@@ -199,7 +210,11 @@ def recompute_image(img_dir: Path, model_name: str, data_dir: Path | None, gt_on
 
 
 def _worker(args: tuple) -> pd.DataFrame:
-    img_dir, model_name, data_dir, gt_only = args
+    img_dir, model_name, data_dir, gt_only, gt_labels = args
+    # Set explicitly: spawned workers (Windows, macOS) re-import the module and would otherwise
+    # see the default GT_LABELS instead of the --gt-labels value.
+    global GT_LABELS
+    GT_LABELS = gt_labels
     try:
         return recompute_image(img_dir, model_name, data_dir, gt_only)
     except Exception as e:
@@ -236,7 +251,7 @@ def main():
         print(f"\n{'='*60}\nModel: {model_name} — {args.workers} workers")
 
         img_dirs = sorted([d for d in model_dir.iterdir() if d.is_dir()])
-        worker_args = [(d, model_name, args.data_dir, args.gt_only) for d in img_dirs]
+        worker_args = [(d, model_name, args.data_dir, args.gt_only, GT_LABELS) for d in img_dirs]
 
         with Pool(args.workers) as pool:
             dfs = pool.map(_worker, worker_args)

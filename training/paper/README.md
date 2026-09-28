@@ -8,7 +8,7 @@ the training data or trainer, not from how each model happened to be set up.
 | Thing | How |
 |---|---|
 | nnUNet version | `train_paper.sh` refuses to run unless the venv has nnunetv2 2.8.1 |
-| Network, patch, batch | One set of plans for everyone, planned on `Dataset102_TEM1_multires4` and transferred with `nnUNetv2_move_plans_between_datasets`. Planned separately, nnUNet would size each network from its own images, so witness and multires would get different architectures |
+| Network, patch, batch | One set of plans for everyone, planned on `Dataset102_TEM1_multires4` and transferred with `nnUNetv2_move_plans_between_datasets`. Planned separately, nnUNet would size each network from its own images, so control and multires would get different architectures |
 | Test subjects | TEM1 `subject_split.json` (seed 42) is reused, never regenerated |
 | Validation images | `generate_splits_shared.py`: fold k validates on the same source images in every dataset (the old GroupKFold splits don't guarantee this) |
 | Dataset construction | `prepare_dataset_paper.py` builds every variant, same interpolation as v2 |
@@ -20,14 +20,14 @@ the training data or trainer, not from how each model happened to be set up.
 
 | Batch | Key | Data | Trainer | Question |
 |---|---|---|---|---|
-| pilot | witness f0 | TEM1 2.36 nm | stock | Fair pair with the existing multires_v2, fast |
-| 1 | witness, multires | TEM1 2.36 / + 7, 10, 16 nm | stock | Core comparison, folds 0-2 for error bars |
-| 1 | da5, da5_multires | same | nnUNetTrainerDA5 | Blur augmentation vs scale |
+| pilot | control f0 | TEM1 2.36 nm | stock | Fair pair with the existing multires_v2, fast |
+| 1 | control, multires | TEM1 2.36 / + 7, 10, 16 nm | stock | Core comparison, folds 0-4 (10 runs, ~57 h on one GPU) |
+| (not retrained) | da5, da5_multires | same | nnUNetTrainerDA5 | Blur vs scale. The paper reuses the earlier nnUNet 2.2.1 DA5 results; keys kept for reference |
 | 2 | scaleaug | TEM1 2.36 nm | ScaleAug2p5 (online zoom to 1/2.5) | Does the robust band follow the scales seen in training? |
 | 2 | multires2 / multires8 | + 16 nm / + 7 log-spaced sizes to 16 nm | stock | Same coverage, sparser / denser |
 | 2 | multires_to7 | + 3.4, 4.9, 7 nm | stock | Same count as multires4, half the coverage |
-| 3 | witness_resenc, multires_resenc | batch 1 data | stock, ResEnc M plans | Does the effect hold for a residual encoder? |
-| gated | witness_tem2, multires_tem2 | TEM2 4.93 nm | stock | Reverse direction. Needs a leakage-free TEM2 split first |
+| 3 | control_resenc, multires_resenc | batch 1 data | stock, ResEnc M plans | Does the effect hold for a residual encoder? |
+| gated | control_tem2, multires_tem2 | TEM2 4.93 nm, axon + myelin + uaxon | stock | Per-dataset models. Needs a leakage-free TEM2 split and the uaxon-annotated pool from Armand |
 
 ## Running on tassan
 
@@ -36,13 +36,13 @@ cd ~/resinv_exp/scripts && git fetch origin && git checkout paper-training-scrip
 source ~/resinv_exp/venv_resinv_v2/bin/activate
 cd training/paper
 
-# pilot: one run, gives a fair 2.8.1 witness to compare against multires_v2 right away
+# pilot: one run, gives a fair 2.8.1 control to compare against multires_v2 right away
 bash launch_batch.sh pilot 0
 
-# batch 1 over both GPUs (8 runs, ~6 h each, ~24 h wall)
+# batch 1 on the single GPU (10 runs, ~5.7 h each, ~2.4 days)
 bash launch_batch.sh 1
-# or everything on GPU 1 only
-bash launch_batch.sh 1 1
+# or split over two GPUs if a second one is free
+bash launch_batch.sh 1 0 1
 
 tmux ls                          # sessions are paper_b<batch>_gpu<N>
 tail -f ~/resinv_exp/nnunet_paper/logs/queue_gpu0.log
@@ -54,8 +54,8 @@ doesn't need them.
 Evaluate a finished model on both test sets at all 22 pixel sizes:
 
 ```bash
-bash run_eval_paper.sh witness 0 0
-# -> ~/resinv_exp/results_paper/{tem1,tem2test}/witness_f0/results.csv
+bash run_eval_paper.sh control 0 0
+# -> ~/resinv_exp/results_paper/{tem1,tem2test}/control_f0/results.csv
 ```
 
 ## Where things go
@@ -82,3 +82,8 @@ bash run_eval_paper.sh witness 0 0
   the full 2.36 to 16 nm range (s ~ 6.8) needs offline copies.
 - nnUNet treats every PNG as spacing 1, so it never resamples inputs internally. The only
   resolution handling is what the training data and augmentation provide.
+
+- **Classes.** TEM1 datasets are built with `--labels axon myelin`; TEM2 ones add `uaxon` (label 3).
+  An image missing any requested mask is skipped. When a TEM2 model is scored on TEM1, uaxon is
+  not scored (TEM1 leaves unmyelinated axons unannotated): `recompute_metrics.py --gt-only` now
+  drops any class without GT instead of comparing it to the model's own prediction.
