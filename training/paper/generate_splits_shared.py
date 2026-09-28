@@ -1,17 +1,29 @@
 #!/usr/bin/env python3
 """
-Write splits_final.json for a paper-batch dataset so that fold k holds out the SAME source
-images in every dataset (control, multires4, multires8, ...).
+Write splits_final.json for a paper-batch dataset: 5-fold train/validation splits made at the
+SUBJECT level, identical across every dataset built from the same source images (control,
+multires4, multires8, ...).
 
-Why not generate_splits_multires.py: that one uses GroupKFold, which balances fold sizes
-greedily by group size. Control groups have 1 case and multires groups have 4, so the two
-datasets can end up with different validation images for the same fold. Any control vs
-multires gap would then partly reflect which images landed in val.
+Three levels of grouping, from the outside in:
+  1. Test subjects never reach nnUNet_raw (prepare_dataset_paper.py leaves them out); this
+     script also checks that none slipped in.
+  2. Validation folds are made of whole subjects: no animal contributes images to both the
+     training and validation side of a fold, so validation scores (and the best-checkpoint
+     choice made on them) are not inflated by near-duplicate tissue from the same mouse.
+  3. All resolution copies of a source image (case ID suffix _px...um) belong to that image's
+     subject, so they automatically stay on the same side too.
 
-Here the fold of each source image depends only on the image name and the seed: sort the
-unique source images, shuffle with a fixed seed, assign fold = index % n_folds. All
-resolution copies of an image (case ID suffix _px...um) follow their source image, so there
-is no cross-resolution leakage either.
+Fold assignment depends only on the subject list, the number of source images per subject
+and the seed, never on the number of resolution copies. So fold k validates on the same
+subjects (and the same source images) in the control and every multi-resolution dataset.
+
+Subjects are balanced across folds by image count: shuffled with the seed, sorted by image
+count (largest first), and each one given to the fold with the fewest images so far. With
+TEM1 (16 training subjects of 8 images) that gives 4/3/3/3/3 subjects per validation fold.
+
+Why not generate_splits_multires.py: it uses GroupKFold on images, which can put images of the
+same subject on both sides, and balances by case count, so control and multires can end up
+with different validation images.
 
 Usage (after nnUNetv2 preprocessing, before nnUNetv2_train):
     python generate_splits_shared.py \
@@ -24,16 +36,43 @@ import argparse
 import json
 import random
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 RES_SUFFIX_RE = re.compile(r"_px\d+p?\d*um$")
+# Case IDs are BIDS names with "-" replaced by "_" (prepare_dataset_paper.to_case_id), e.g.
+# sub_nyuMouse07_sample_0001_TEM or sub_366A_sample_0001_acq_roi_TEM. BIDS subject labels are
+# alphanumeric, so the subject is "sub_" plus everything up to the next underscore.
+SUBJECT_RE = re.compile(r"^(sub_[A-Za-z0-9]+)_")
 N_FOLDS = 5
 SEED = 42
 
 
 def image_group(case_id: str) -> str:
+    """Source image of a case (strips the resolution suffix of multi-resolution copies)."""
     return RES_SUFFIX_RE.sub("", case_id)
+
+
+def subject_of(case_id: str) -> str:
+    m = SUBJECT_RE.match(case_id)
+    if m is None:
+        raise ValueError(f"Cannot parse a subject from case ID {case_id!r}")
+    return m.group(1)
+
+
+def assign_folds(images_per_subject: dict[str, int], n_folds: int, seed: int) -> dict[str, int]:
+    """Deterministic, image-count-balanced assignment of whole subjects to folds."""
+    order = sorted(images_per_subject)
+    random.Random(seed).shuffle(order)
+    # Stable sort: ties keep the shuffled order, so the result depends only on the seed.
+    order.sort(key=lambda s: -images_per_subject[s])
+    load = [0] * n_folds
+    fold_of = {}
+    for s in order:
+        k = min(range(n_folds), key=lambda f: (load[f], f))
+        fold_of[s] = k
+        load[k] += images_per_subject[s]
+    return fold_of
 
 
 def main():
@@ -45,37 +84,50 @@ def main():
     parser.add_argument("--seed", type=int, default=SEED)
     args = parser.parse_args()
 
-    images_tr = args.nnunet_raw / args.dataset_name / "imagesTr"
-    case_ids = sorted(p.name[: -len("_0000.png")] for p in images_tr.glob("*_0000.png"))
+    raw_dir = args.nnunet_raw / args.dataset_name
+    case_ids = sorted(p.name[: -len("_0000.png")] for p in (raw_dir / "imagesTr").glob("*_0000.png"))
     if not case_ids:
-        raise FileNotFoundError(f"No cases found in {images_tr}")
+        raise FileNotFoundError(f"No cases found in {raw_dir / 'imagesTr'}")
 
-    groups = sorted({image_group(c) for c in case_ids})
-    order = list(groups)
-    random.Random(args.seed).shuffle(order)
-    fold_of = {g: i % args.n_folds for i, g in enumerate(order)}
+    # Level 1: no test subject may appear among the training cases.
+    dataset_json = json.loads((raw_dir / "dataset.json").read_text())
+    test_subjects = {s.replace("-", "_") for s in dataset_json.get("resinv", {}).get("test_subjects", [])}
+    leaked = sorted({subject_of(c) for c in case_ids} & test_subjects)
+    if leaked:
+        raise RuntimeError(f"Test subjects found among training cases: {leaked}")
 
-    splits = []
+    images = sorted({image_group(c) for c in case_ids})
+    images_per_subject = Counter(subject_of(img) for img in images)
+    subjects = sorted(images_per_subject)
+    if len(subjects) < args.n_folds:
+        raise ValueError(f"{len(subjects)} subjects is fewer than {args.n_folds} folds")
+    fold_of = assign_folds(images_per_subject, args.n_folds, args.seed)
+
+    splits, manifest = [], {}
     for fold in range(args.n_folds):
-        val = [c for c in case_ids if fold_of[image_group(c)] == fold]
-        train = [c for c in case_ids if fold_of[image_group(c)] != fold]
+        val = [c for c in case_ids if fold_of[subject_of(c)] == fold]
+        train = [c for c in case_ids if fold_of[subject_of(c)] != fold]
+        # Levels 2 and 3: whole subjects, and therefore whole images, on one side only.
+        assert not ({subject_of(c) for c in val} & {subject_of(c) for c in train})
         assert not ({image_group(c) for c in val} & {image_group(c) for c in train})
         splits.append({"train": train, "val": val})
+
+        val_subjects = sorted(s for s in subjects if fold_of[s] == fold)
+        val_images = sorted({image_group(c) for c in val})
+        manifest[f"fold_{fold}"] = {"val_subjects": val_subjects, "val_images": val_images}
         res = Counter((c[len(image_group(c)):].lstrip("_") or "native") for c in val)
-        print(f"Fold {fold}: {len(train)} train / {len(val)} val cases, "
-              f"{len({image_group(c) for c in val})} val images, val resolutions {dict(sorted(res.items()))}")
+        print(f"Fold {fold}: val subjects {val_subjects} | {len(val_images)} val images, "
+              f"{len(val)} val / {len(train)} train cases | val resolutions {dict(sorted(res.items()))}")
 
     out_dir = args.nnunet_preprocessed / args.dataset_name
     if not out_dir.exists():
         raise FileNotFoundError(f"{out_dir} does not exist. Preprocess the dataset first.")
     (out_dir / "splits_final.json").write_text(json.dumps(splits, indent=2))
-
-    # Human-readable record of which source images each fold validates on, so the
-    # "same val images across datasets" property can be checked with a plain diff.
-    manifest = {f"fold_{k}": sorted(g for g in groups if fold_of[g] == k) for k in range(args.n_folds)}
-    (out_dir / "splits_val_images.json").write_text(json.dumps(manifest, indent=2))
-    print(f"\nWrote {out_dir / 'splits_final.json'} and splits_val_images.json "
-          f"({len(groups)} source images, seed {args.seed})")
+    # Readable record of each fold's validation subjects and images: diff it between the control
+    # and multires datasets to confirm they validate on the same data.
+    (out_dir / "splits_val_subjects.json").write_text(json.dumps(manifest, indent=2))
+    print(f"\nWrote {out_dir / 'splits_final.json'} and splits_val_subjects.json "
+          f"({len(subjects)} subjects, {len(images)} source images, seed {args.seed})")
 
 
 if __name__ == "__main__":

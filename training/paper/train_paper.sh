@@ -11,8 +11,8 @@
 #     same patch size, batch size and network. Without this, nnUNet would plan each
 #     dataset from its own image sizes and control/multires would get different networks.
 #   - one subject split (TEM1 subject_split.json, seed 42), reused, never regenerated
-#   - one fold assignment (generate_splits_shared.py): fold k validates on the same source
-#     images in every dataset
+#   - one fold assignment (generate_splits_shared.py): folds are made of whole subjects
+#     and fold k validates on the same subjects in every dataset
 #   - every dataset built by the same script (prepare_dataset_paper.py)
 #
 # Each run appends a line to ${BASE}/cost_log.jsonl (preprocessing time, training time,

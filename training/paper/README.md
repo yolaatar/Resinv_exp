@@ -10,7 +10,7 @@ the training data or trainer, not from how each model happened to be set up.
 | nnUNet version | `train_paper.sh` refuses to run unless the venv has nnunetv2 2.8.1 |
 | Network, patch, batch | One set of plans for everyone, planned on `Dataset102_TEM1_multires4` and transferred with `nnUNetv2_move_plans_between_datasets`. Planned separately, nnUNet would size each network from its own images, so control and multires would get different architectures |
 | Test subjects | TEM1 `subject_split.json` (seed 42) is reused, never regenerated |
-| Validation images | `generate_splits_shared.py`: fold k validates on the same source images in every dataset (the old GroupKFold splits don't guarantee this) |
+| Validation split | `generate_splits_shared.py`: 5 folds of whole **subjects** (no mouse on both the train and validation side), balanced by image count, identical in every dataset. Resolution copies follow their image. On TEM1: 4/3/3/3/3 subjects per fold. Also checks that no test subject reached the training data |
 | Dataset construction | `prepare_dataset_paper.py` builds every variant, same interpolation as v2 |
 | Training budget | stock 1000 epochs x 250 iterations; evaluation always uses `checkpoint_final.pth` |
 
