@@ -165,6 +165,9 @@ prepare_target() {  # raw dataset + transferred plans + preprocessing for the mo
         log "Transferring ${PLANS} from ${REF_NAME} to ${DS_NAME}"
         nnUNetv2_extract_fingerprint -d "${DS_ID}" --verify_dataset_integrity 2>&1 | tee -a "${LOG}"
         nnUNetv2_move_plans_between_datasets -s "${REF_ID}" -t "${DS_ID}" -sp "${PLANS}" -tp "${PLANS}" 2>&1 | tee -a "${LOG}"
+        # nnUNet's planner normally copies dataset.json into the preprocessed folder, and
+        # nnUNetv2_preprocess reads it from there. Moving plans skips the planner, so copy it.
+        cp "${nnUNet_raw}/${DS_NAME}/dataset.json" "${nnUNet_preprocessed}/${DS_NAME}/dataset.json"
         nnUNetv2_preprocess -d "${DS_ID}" -plans_name "${PLANS}" -c 2d 2>&1 | tee -a "${LOG}"
     fi
     echo $((SECONDS - t0)) > "${marker}"
