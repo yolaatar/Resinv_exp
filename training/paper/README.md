@@ -51,11 +51,11 @@ tail -f ~/resinv_exp/nnunet_paper/logs/queue_gpu0.log
 Batch 2 installs the custom trainers automatically (`install_custom_trainers.sh`). Batch 1
 doesn't need them.
 
-Evaluate a finished model on both test sets at all 22 pixel sizes:
+Evaluate a finished model on the TEM1 test set across the 25-size grid (final checkpoint):
 
 ```bash
 bash run_eval_paper.sh control 0 0
-# -> ~/resinv_exp/results_paper/{tem1,tem2test}/control_f0/results.csv
+# -> ~/resinv_exp/results_paper/tem1/control_f0/results.csv
 ```
 
 ## Where things go
