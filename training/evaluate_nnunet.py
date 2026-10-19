@@ -12,6 +12,16 @@ Output structure (compatible with recompute_metrics.py):
 
 If no subject_split.json is found, all images in the dataset are used.
 
+Canonical resampling (--canonical-px): the usual practical fallback for a model trained at one
+pixel size. After an image has been resampled to a target pixel size (simulating an acquisition
+at that size), it is resampled again to the canonical (training) pixel size, segmented there, and
+the prediction is mapped back to the target-pixel-size grid with nearest neighbour. Output files
+and shapes are identical to the default mode, so recompute_metrics.py scores both the same way.
+
+Every run writes {img_name}/timing.csv: for each pixel size, the input size, the size actually
+segmented and the wall-clock seconds for resampling + inference (nnUNet's file-based predictor,
+so I/O is included equally in both modes).
+
 Usage (on cluster):
   source ~/resinv_exp/venv_resinv/bin/activate
   export nnUNet_results=~/duke/temp/yolaatar/nnunet_resinv/nnUNet_results
@@ -37,9 +47,11 @@ Tested with: nnunetv2==2.2.1
 """
 
 import argparse
+import csv
 import json
 import random
 import tempfile
+import time
 from pathlib import Path
 
 import numpy as np
@@ -198,6 +210,9 @@ def main():
                         help="Cap number of images evaluated (random sample, seed=42)")
     parser.add_argument("--gt-only", action="store_true",
                         help="Skip images with no GT mask in derivatives/labels/")
+    parser.add_argument("--canonical-px", type=float, default=None,
+                        help="Canonical-resampling baseline: resample each target-pixel-size image to "
+                             "this pixel size (um/px) before inference, map the prediction back")
     args = parser.parse_args()
 
     from nnunetv2.inference.predict_from_raw_data import nnUNetPredictor
@@ -248,6 +263,7 @@ def main():
     print(f"Images    : {len(images)}")
     print(f"Native px : {args.original_px} μm/px (fallback; per-image sidecar JSON used when present)")
     print(f"Px sizes  : {args.px_sizes}")
+    print(f"Canonical : {args.canonical_px if args.canonical_px else 'off'}")
     print(f"Output    : {args.output_dir}")
 
     for img_path in images:
@@ -266,19 +282,43 @@ def main():
         img_orig = np.array(Image.open(img_path).convert("L"))
         out_dir.mkdir(parents=True, exist_ok=True)
 
+        timing_rows = []
         for px in args.px_sizes:
             scale = original_px / px
             img_resampled = img_orig if abs(scale - 1.0) < 1e-4 else resample(img_orig, scale)
 
-            seg = predict(predictor, img_resampled)
+            t0 = time.perf_counter()
+            if args.canonical_px:
+                # Resample the target-size image to the canonical size, segment there, and map the
+                # labels back to the target-size grid (nearest neighbour keeps them integer).
+                c_scale = px / args.canonical_px
+                img_input = img_resampled if abs(c_scale - 1.0) < 1e-4 else resample(img_resampled, c_scale)
+                seg_c = predict(predictor, img_input)
+                seg = seg_c if seg_c.shape == img_resampled.shape else resize(
+                    seg_c, img_resampled.shape, order=0, preserve_range=True, anti_aliasing=False
+                ).astype(np.uint8)
+            else:
+                img_input = img_resampled
+                seg = predict(predictor, img_input)
+            seconds = time.perf_counter() - t0
             tag = px_tag(px)
 
             for class_id, label in label_map.items():
                 mask = (seg == class_id).astype(np.uint8) * 255
                 Image.fromarray(mask).save(out_dir / f"{img_name}_{tag}_seg-{label}.png")
 
+            timing_rows.append({"pixel_size_um": px,
+                                "input_w": img_resampled.shape[1], "input_h": img_resampled.shape[0],
+                                "segmented_w": img_input.shape[1], "segmented_h": img_input.shape[0],
+                                "seconds": round(seconds, 3)})
             arrow = "up" if scale > 1 else ("=" if abs(scale - 1.0) < 1e-4 else "down")
-            print(f"  {px:.7g} μm/px  {img_resampled.shape[1]}x{img_resampled.shape[0]}  [{arrow}]")
+            via = f" -> segmented at {img_input.shape[1]}x{img_input.shape[0]}" if args.canonical_px else ""
+            print(f"  {px:.7g} μm/px  {img_resampled.shape[1]}x{img_resampled.shape[0]}  [{arrow}]{via}  {seconds:.1f}s")
+
+        with open(out_dir.parent / "timing.csv", "w", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=list(timing_rows[0]))
+            writer.writeheader()
+            writer.writerows(timing_rows)
 
     print("\nDone.")
 

@@ -5,6 +5,11 @@
 #
 # Usage: bash run_eval_paper.sh <model_key> <fold> [gpu]
 #        CHECKPOINT=checkpoint_best.pth bash run_eval_paper.sh ...   (supplementary comparison)
+#        CANONICAL_PX=0.00236 bash run_eval_paper.sh control 0 0      (canonical-resampling baseline)
+#
+#   CANONICAL_PX: each target-pixel-size test image is resampled to this pixel size (um/px)
+#   before inference and the prediction mapped back, i.e. the usual fallback for a model trained
+#   at one pixel size. Results go to <model>_canonical_f<fold>, scored exactly like the others.
 #
 #   Test set: the 4 TEM1 test subjects in subject_split.json (30 images), native 2.36 nm.
 #   TEM2 is not evaluated for now (decision 2026-10-06: too different from TEM1 to be useful).
@@ -53,15 +58,21 @@ MODEL_DIR="${BASE}/nnUNet_results/${DS_NAME}/${TRAINER}__${PLANS}__2d"
 [ -f "${MODEL_DIR}/fold_${FOLD}/${CHECKPOINT}" ] || { echo "Missing ${MODEL_DIR}/fold_${FOLD}/${CHECKPOINT}"; exit 1; }
 SUFFIX=""
 [ "${CHECKPOINT}" = checkpoint_final.pth ] || SUFFIX="_${CHECKPOINT%.pth}"
-NAME="${MODEL_KEY}_f${FOLD}${SUFFIX}"
+LABEL="${MODEL_KEY}"
+CANON_ARGS=()
+if [ -n "${CANONICAL_PX:-}" ]; then
+    LABEL="${MODEL_KEY}_canonical"
+    CANON_ARGS=(--canonical-px "${CANONICAL_PX}")
+fi
+NAME="${LABEL}_f${FOLD}${SUFFIX}"
 mkdir -p "${RESULTS}/tem1" "${BASE}/logs"
 
-echo "=== ${NAME}: TEM1 test set, ${#PX_GRID[@]} pixel sizes, ${CHECKPOINT} ==="
+echo "=== ${NAME}: TEM1 test set, ${#PX_GRID[@]} pixel sizes, ${CHECKPOINT}${CANONICAL_PX:+, canonical resampling to ${CANONICAL_PX} um/px} ==="
 CUDA_VISIBLE_DEVICES="${GPU}" python "${TRAINING_DIR}/evaluate_nnunet.py" \
     --model-dir "${MODEL_DIR}" --model-name "${NAME}" \
     --data-dir "${TEM1_DIR}" --split-file "${TEM1_DIR}/subject_split.json" \
     --original-px 0.00236 --px-sizes "${PX_GRID[@]}" \
-    --fold "${FOLD}" --checkpoint "${CHECKPOINT}" \
+    --fold "${FOLD}" --checkpoint "${CHECKPOINT}" ${CANON_ARGS[@]+"${CANON_ARGS[@]}"} \
     --output-dir "${RESULTS}/tem1" --gpu-id 0 2>&1 | tee "${BASE}/logs/eval_${NAME}_tem1.log"
 
 echo "=== ${NAME}: MONAI Dice vs GT ==="
