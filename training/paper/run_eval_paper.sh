@@ -11,6 +11,10 @@
 #   before inference and the prediction mapped back, i.e. the usual fallback for a model trained
 #   at one pixel size. Results go to <model>_canonical_f<fold>, scored exactly like the others.
 #
+#   TIMING_IMAGES=N: inference-time run only. Segments the same N test images (fixed random
+#   sample) across the grid, writes timing.csv under results_paper/timing/, and skips scoring.
+#   Use it to time several models back to back on one idle GPU, so their times are comparable.
+#
 #   Test set: the 4 TEM1 test subjects in subject_split.json (30 images), native 2.36 nm.
 #   TEM2 is not evaluated for now (decision 2026-10-06: too different from TEM1 to be useful).
 #
@@ -65,7 +69,13 @@ if [ -n "${CANONICAL_PX:-}" ]; then
     CANON_ARGS=(--canonical-px "${CANONICAL_PX}")
 fi
 NAME="${LABEL}_f${FOLD}${SUFFIX}"
-mkdir -p "${RESULTS}/tem1" "${BASE}/logs"
+OUT="${RESULTS}/tem1"
+TIMING_ARGS=()
+if [ -n "${TIMING_IMAGES:-}" ]; then
+    OUT="${RESULTS}/timing"
+    TIMING_ARGS=(--max-images "${TIMING_IMAGES}")
+fi
+mkdir -p "${OUT}" "${BASE}/logs"
 
 echo "=== ${NAME}: TEM1 test set, ${#PX_GRID[@]} pixel sizes, ${CHECKPOINT}${CANONICAL_PX:+, canonical resampling to ${CANONICAL_PX} um/px} ==="
 CUDA_VISIBLE_DEVICES="${GPU}" python "${TRAINING_DIR}/evaluate_nnunet.py" \
@@ -73,7 +83,13 @@ CUDA_VISIBLE_DEVICES="${GPU}" python "${TRAINING_DIR}/evaluate_nnunet.py" \
     --data-dir "${TEM1_DIR}" --split-file "${TEM1_DIR}/subject_split.json" \
     --original-px 0.00236 --px-sizes "${PX_GRID[@]}" \
     --fold "${FOLD}" --checkpoint "${CHECKPOINT}" ${CANON_ARGS[@]+"${CANON_ARGS[@]}"} \
-    --output-dir "${RESULTS}/tem1" --gpu-id 0 2>&1 | tee "${BASE}/logs/eval_${NAME}_tem1.log"
+    ${TIMING_ARGS[@]+"${TIMING_ARGS[@]}"} \
+    --output-dir "${OUT}" --gpu-id 0 2>&1 | tee "${BASE}/logs/eval_${NAME}_$(basename "${OUT}").log"
+
+if [ -n "${TIMING_IMAGES:-}" ]; then
+    echo "Timing: ${OUT}/${NAME}/*/timing.csv (not scored)"
+    exit 0
+fi
 
 echo "=== ${NAME}: MONAI Dice vs GT ==="
 # TEM1 labels axon and myelin only (its unmyelinated axons are unannotated).
