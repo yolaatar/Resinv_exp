@@ -11,6 +11,11 @@
 #   before inference and the prediction mapped back, i.e. the usual fallback for a model trained
 #   at one pixel size. Results go to <model>_canonical_f<fold>, scored exactly like the others.
 #
+#   CANONICAL_PX_ERROR=k (with CANONICAL_PX): canonical resampling is told a pixel size k times
+#   the true one, i.e. wrong metadata. Results go to <model>_canonical_err<k>_f<fold>.
+#
+#   PX_SIZES="0.00236 0.01": evaluate only these pixel sizes (um/px) instead of the full grid.
+#
 #   TIMING_IMAGES=N: inference-time run only. Segments the same N test images (fixed random
 #   sample) across the grid, writes timing.csv under results_paper/timing/, and skips scoring.
 #   Use it to time several models back to back on one idle GPU, so their times are comparable.
@@ -44,6 +49,9 @@ PX_GRID=(
     0.004 0.00459 0.00493 0.00606 0.007 0.008 0.00919 0.01 0.01213 0.01393 0.016
     0.0213 0.0283 0.0376 0.05
 )
+if [ -n "${PX_SIZES:-}" ]; then
+    read -r -a PX_GRID <<< "${PX_SIZES}"
+fi
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRAINING_DIR="$(dirname "${HERE}")"
@@ -67,6 +75,12 @@ CANON_ARGS=()
 if [ -n "${CANONICAL_PX:-}" ]; then
     LABEL="${MODEL_KEY}_canonical"
     CANON_ARGS=(--canonical-px "${CANONICAL_PX}")
+    if [ -n "${CANONICAL_PX_ERROR:-}" ]; then
+        LABEL="${LABEL}_err${CANONICAL_PX_ERROR}"
+        CANON_ARGS+=(--canonical-px-error "${CANONICAL_PX_ERROR}")
+    fi
+elif [ -n "${CANONICAL_PX_ERROR:-}" ]; then
+    echo "CANONICAL_PX_ERROR needs CANONICAL_PX"; exit 1
 fi
 NAME="${LABEL}_f${FOLD}${SUFFIX}"
 OUT="${RESULTS}/tem1"

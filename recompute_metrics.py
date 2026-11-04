@@ -114,6 +114,13 @@ def recompute_image(img_dir: Path, model_name: str, data_dir: Path | None, gt_on
 
     ref_px = min(px_set, key=lambda x: abs(x - TRAINING_PX))
     active_labels = detect_active_labels(pred_dir, ref_px)
+    # A class with GT is always scored: a degenerate prediction (empty or flooding the image) is
+    # a failure to count, not a reason to skip the image.
+    if data_dir:
+        predicted = {re.search(r"_seg-(.+)\.png", p.name).group(1) for p in all_pred_files}
+        for label in sorted(predicted & set(GT_LABELS) - set(active_labels)):
+            if load_gt_mask(img_name, label, data_dir) is not None:
+                active_labels.append(label)
     if not active_labels:
         return pd.DataFrame()
 

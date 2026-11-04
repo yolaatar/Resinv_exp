@@ -18,6 +18,10 @@ at that size), it is resampled again to the canonical (training) pixel size, seg
 the prediction is mapped back to the target-pixel-size grid with nearest neighbour. Output files
 and shapes are identical to the default mode, so recompute_metrics.py scores both the same way.
 
+Metadata error (--canonical-px-error k): canonical resampling trusts the image's pixel size. With
+k != 1 the pixel size it is told is k times the true one (k = 1.2: metadata 20% too large), so the
+image is resampled by the wrong factor and the model sees objects as if at canonical / k.
+
 Every run writes {img_name}/timing.csv: for each pixel size, the input size, the size actually
 segmented and the wall-clock seconds for resampling + inference (nnUNet's file-based predictor,
 so I/O is included equally in both modes).
@@ -213,6 +217,9 @@ def main():
     parser.add_argument("--canonical-px", type=float, default=None,
                         help="Canonical-resampling baseline: resample each target-pixel-size image to "
                              "this pixel size (um/px) before inference, map the prediction back")
+    parser.add_argument("--canonical-px-error", type=float, default=1.0,
+                        help="With --canonical-px: the pixel size canonical resampling is told is this "
+                             "factor times the true one (simulated metadata error)")
     args = parser.parse_args()
 
     from nnunetv2.inference.predict_from_raw_data import nnUNetPredictor
@@ -263,7 +270,8 @@ def main():
     print(f"Images    : {len(images)}")
     print(f"Native px : {args.original_px} μm/px (fallback; per-image sidecar JSON used when present)")
     print(f"Px sizes  : {args.px_sizes}")
-    print(f"Canonical : {args.canonical_px if args.canonical_px else 'off'}")
+    print(f"Canonical : {args.canonical_px if args.canonical_px else 'off'}"
+          + (f" (told pixel size x{args.canonical_px_error:g})" if args.canonical_px and args.canonical_px_error != 1 else ""))
     print(f"Output    : {args.output_dir}")
 
     for img_path in images:
@@ -291,7 +299,7 @@ def main():
             if args.canonical_px:
                 # Resample the target-size image to the canonical size, segment there, and map the
                 # labels back to the target-size grid (nearest neighbour keeps them integer).
-                c_scale = px / args.canonical_px
+                c_scale = px * args.canonical_px_error / args.canonical_px
                 img_input = img_resampled if abs(c_scale - 1.0) < 1e-4 else resample(img_resampled, c_scale)
                 seg_c = predict(predictor, img_input)
                 seg = seg_c if seg_c.shape == img_resampled.shape else resize(
