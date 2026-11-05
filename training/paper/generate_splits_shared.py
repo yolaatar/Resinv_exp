@@ -39,7 +39,9 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
-RES_SUFFIX_RE = re.compile(r"_px\d+p?\d*um$")
+# Copy suffixes: a resolution copy (_px0p007um) or a repeated native case (_rep2, from
+# prepare_dataset_paper.py --native-copies). Both belong to their source image.
+RES_SUFFIX_RE = re.compile(r"(_px\d+p?\d*um|_rep\d+)$")
 # Case IDs are BIDS names with "-" replaced by "_" (prepare_dataset_paper.to_case_id), e.g.
 # sub_nyuMouse07_sample_0001_TEM or sub_366A_sample_0001_acq_roi_TEM. BIDS subject labels are
 # alphanumeric, so the subject is "sub_" plus everything up to the next underscore.
@@ -49,7 +51,7 @@ SEED = 42
 
 
 def image_group(case_id: str) -> str:
-    """Source image of a case (strips the resolution suffix of multi-resolution copies)."""
+    """Source image of a case (strips the suffix of resolution copies and repeated native cases)."""
     return RES_SUFFIX_RE.sub("", case_id)
 
 

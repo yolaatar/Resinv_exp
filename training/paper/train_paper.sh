@@ -45,7 +45,7 @@ PLANS_RESENC="nnUNetResEncMPlans_ref102"
 # trainer, plans kind, gated (1 = needs ALLOW_GATED=1, design not settled yet).
 # ---------------------------------------------------------------------------
 lookup_model() {
-    GATED=0; PLANS_KIND=default; TRAINER=nnUNetTrainer; SOURCE=TEM1; LABELS="axon,myelin"
+    GATED=0; PLANS_KIND=default; TRAINER=nnUNetTrainer; SOURCE=TEM1; LABELS="axon,myelin"; NATIVE_COPIES=1
     case "$1" in
         # Batch 1: core comparison + blur ablation
         control)        DS_ID=101; DS_NAME=Dataset101_TEM1_control;   EXTRA="" ;;
@@ -59,6 +59,14 @@ lookup_model() {
         multires2)      DS_ID=103; DS_NAME=Dataset103_TEM1_multires2; EXTRA="0.016" ;;
         multires8)      DS_ID=104; DS_NAME=Dataset104_TEM1_multires8; EXTRA="0.003102 0.004078 0.00536 0.007045 0.00926 0.01217 0.016" ;;
         multires_to7)   DS_ID=105; DS_NAME=Dataset105_TEM1_multires_to7; EXTRA="0.003391 0.004872 0.007" ;;
+        # Batch 3, fold 0. Gap series: two sizes, native + one coarser copy, so only the gap
+        # changes (x3, x4.2; multires2 is x6.8). Range: four log-spaced sizes up to 10 nm (the
+        # band-follows-range rule predicts robustness to ~17 nm). Native share: multires4 with each
+        # native case written 3x, so half the patches are native (multires4: a quarter).
+        multires_gap7)    DS_ID=106; DS_NAME=Dataset106_TEM1_gap7;     EXTRA="0.007" ;;
+        multires_gap10)   DS_ID=107; DS_NAME=Dataset107_TEM1_gap10;    EXTRA="0.01" ;;
+        multires_to10)    DS_ID=108; DS_NAME=Dataset108_TEM1_multires_to10; EXTRA="0.003819 0.006179 0.01" ;;
+        multires_native3) DS_ID=109; DS_NAME=Dataset109_TEM1_multires4_native3; EXTRA="0.007 0.01 0.016"; NATIVE_COPIES=3 ;;
         # Batch 3: architecture check (ResEnc M), same data as batch 1
         control_resenc)  DS_ID=101; DS_NAME=Dataset101_TEM1_control;   EXTRA="";  PLANS_KIND=resenc ;;
         multires_resenc) DS_ID=102; DS_NAME=Dataset102_TEM1_multires4; EXTRA="0.007 0.01 0.016"; PLANS_KIND=resenc ;;
@@ -77,7 +85,7 @@ lookup_model() {
     if [ "${PLANS_KIND}" = resenc ]; then PLANS="${PLANS_RESENC}"; else PLANS="${PLANS_DEFAULT}"; fi
 }
 
-ALL_KEYS="control multires da5 da5_multires scaleaug scaleaug_p05 multires2 multires8 multires_to7 control_resenc multires_resenc control_tem2 multires_tem2"
+ALL_KEYS="control multires da5 da5_multires scaleaug scaleaug_p05 multires2 multires8 multires_to7 multires_gap7 multires_gap10 multires_to10 multires_native3 control_resenc multires_resenc control_tem2 multires_tem2"
 
 if [ "${1:-}" = "--list" ]; then
     printf "%-16s %-30s %-30s %-26s %-18s %s\n" KEY DATASET TRAINER PLANS LABELS EXTRA_PX
@@ -127,13 +135,26 @@ prepare_raw() {  # <ds_id> <ds_name> <data_dir> <original_px> <split_file> <labe
         --data-dir "${data}" --nnunet-raw "${nnUNet_raw}" \
         --dataset-id "${id}" --dataset-name "${name}" \
         --original-px "${opx}" --split-file "${split}" --labels ${labels//,/ } \
+        --native-copies "${NATIVE_COPIES:-1}" \
         ${extra[@]+"${extra[@]}"} 2>&1 | tee -a "${LOG}"
 }
 
 plan_reference() {  # plans the reference dataset once per plans kind
     local marker="${nnUNet_preprocessed}/${REF_NAME}/.done_${PLANS_DEFAULT}"
-    if [ ! -f "${marker}" ]; then
-        prepare_raw "${REF_ID}" "${REF_NAME}" "${TEM1_DIR}" 0.00236 "${TEM1_DIR}/subject_split.json" axon,myelin 0.007 0.01 0.016
+    local ref_plans="${nnUNet_preprocessed}/${REF_NAME}/${PLANS_DEFAULT}.json"
+    local trained="${nnUNet_results}/${REF_NAME}/nnUNetTrainer__${PLANS_DEFAULT}__2d"
+    # The preprocessed folder can vanish (it used to live in /tmp, wiped at reboot). Re-planning
+    # would probably reproduce the same plans, but not provably: restore the exact plans the
+    # trained reference model used instead. Only when training another dataset; retraining the
+    # reference itself still needs its preprocessed data, so it goes through the full path.
+    if [ ! -f "${marker}" ] && [ ! -f "${ref_plans}" ] && [ "${DS_ID}" != "${REF_ID}" ] && [ -f "${trained}/plans.json" ]; then
+        mkdir -p "${nnUNet_preprocessed}/${REF_NAME}"
+        cp "${trained}/plans.json" "${ref_plans}"
+        cp "${trained}/dataset.json" "${trained}/dataset_fingerprint.json" "${nnUNet_preprocessed}/${REF_NAME}/"
+        log "Restored ${PLANS_DEFAULT} from the trained reference model (${trained}/plans.json)"
+    fi
+    if [ ! -f "${marker}" ] && [ ! -f "${ref_plans}" ]; then
+        NATIVE_COPIES=1 prepare_raw "${REF_ID}" "${REF_NAME}" "${TEM1_DIR}" 0.00236 "${TEM1_DIR}/subject_split.json" axon,myelin 0.007 0.01 0.016
         log "Planning + preprocessing reference ${REF_NAME} -> ${PLANS_DEFAULT}"
         local t0=${SECONDS}
         nnUNetv2_plan_and_preprocess -d "${REF_ID}" -c 2d --verify_dataset_integrity \
@@ -168,6 +189,9 @@ prepare_target() {  # raw dataset + transferred plans + preprocessing for the mo
         # nnUNet's planner normally copies dataset.json into the preprocessed folder, and
         # nnUNetv2_preprocess reads it from there. Moving plans skips the planner, so copy it.
         cp "${nnUNet_raw}/${DS_NAME}/dataset.json" "${nnUNet_preprocessed}/${DS_NAME}/dataset.json"
+        nnUNetv2_preprocess -d "${DS_ID}" -plans_name "${PLANS}" -c 2d 2>&1 | tee -a "${LOG}"
+    elif [ ! -d "${nnUNet_preprocessed}/${DS_NAME}/${PLANS}_2d" ]; then
+        # Reference whose plans were restored rather than planned: its data still needs preprocessing.
         nnUNetv2_preprocess -d "${DS_ID}" -plans_name "${PLANS}" -c 2d 2>&1 | tee -a "${LOG}"
     fi
     echo $((SECONDS - t0)) > "${marker}"

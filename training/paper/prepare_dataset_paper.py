@@ -15,6 +15,10 @@ of one source image on the same side of the train/val split.
 
 Only downsampling is supported: every --extra-px must be coarser than --original-px.
 
+--native-copies N writes the native-resolution case N times (IDs ..._rep2, ..._rep3), so nnUNet,
+which samples cases uniformly, draws native patches N times as often. With N = 3 and three extra
+sizes, half of the training patches are native instead of a quarter.
+
 Usage (on tassan):
     python prepare_dataset_paper.py \
         --data-dir ~/resinv_exp/data/TEM1 \
@@ -111,6 +115,8 @@ def main():
     parser.add_argument("--labels", nargs="+", default=["axon", "myelin"],
                         help="Classes to train, in label-id order (1, 2, ...). TEM2 models add uaxon. "
                              "Masks are read from derivatives/labels/<sub>/micr/<img>_seg-<label>-manual.png")
+    parser.add_argument("--native-copies", type=int, default=1,
+                        help="Write the native-resolution case this many times (sampling weight)")
     parser.add_argument("--overwrite", action="store_true",
                         help="Rebuild even if the dataset folder already has cases")
     args = parser.parse_args()
@@ -161,15 +167,19 @@ def main():
                 img_out = downsample_image(img_arr, scale)
                 label_out = downsample_label(label_arr, scale)
             case_id = to_case_id(img_name, px)
-            Image.fromarray(img_out).save(images_tr / f"{case_id}_0000.png")
-            Image.fromarray(label_out).save(labels_tr / f"{case_id}.png")
-            n_ok += 1
+            copies = args.native_copies if px is None else 1
+            for rep in range(1, copies + 1):
+                cid = case_id if rep == 1 else f"{case_id}_rep{rep}"
+                Image.fromarray(img_out).save(images_tr / f"{cid}_0000.png")
+                Image.fromarray(label_out).save(labels_tr / f"{cid}.png")
+                n_ok += 1
 
         n_images += 1
         if n_images % 20 == 0:
             print(f"  {n_images}/{len(train_images)} images done")
 
-    print(f"\nPrepared: {n_ok} cases ({n_images} images x {len(all_px)} resolutions)")
+    print(f"\nPrepared: {n_ok} cases ({n_images} images x {len(all_px)} resolutions"
+          + (f", native written {args.native_copies}x)" if args.native_copies > 1 else ")"))
     print(f"Skipped (missing a requested mask): {len(skipped)} {skipped if skipped else ''}")
 
     dataset_json = {
@@ -188,6 +198,7 @@ def main():
             "source_dir": str(args.data_dir),
             "original_px_um": args.original_px,
             "extra_px_um": sorted(args.extra_px),
+            "native_copies": args.native_copies,
             "labels": args.labels,
             "n_source_images": n_images,
             "train_subjects": train_subjects,
