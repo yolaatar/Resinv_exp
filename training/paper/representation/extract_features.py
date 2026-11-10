@@ -237,7 +237,10 @@ def main():
     predictor, net = load_predictor(args.model_dir, args.fold, args.checkpoint, device)
     label_map = {v: k for k, v in predictor.dataset_json["labels"].items() if k in ("axon", "myelin")}
     stages = stage_modules(net)
-    total_stride = int(np.prod(np.prod(predictor.configuration_manager.pool_op_kernel_sizes, axis=1)))
+    # Per-axis product of the pooling kernels, e.g. 7 pools of [2, 2] -> (128, 128)
+    total_stride = np.prod(predictor.configuration_manager.pool_op_kernel_sizes, axis=0).astype(int)
+    assert total_stride[0] == total_stride[1], f"anisotropic pooling {total_stride} not supported"
+    total_stride = int(total_stride[0])
     print(f"Model {args.model_name}: {len(stages)} stages, total stride {total_stride}, labels {label_map}")
 
     captured = {}
