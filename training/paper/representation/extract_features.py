@@ -6,7 +6,8 @@ stage shift, UMAP).
 
 Each test image is resampled to each pixel size exactly as in the sweep (evaluate_nnunet.resample),
 normalized with the model's own preprocessor, and sent through the network in a single forward
-pass (no sliding window). Forward hooks on every encoder and decoder stage capture the feature
+pass (no sliding window), zero-padded and centred to at least the patch size as nnU-Net's predictor
+does (InstanceNorm sees the padding, so this matters for images smaller than the patch). Forward hooks on every encoder and decoder stage capture the feature
 maps, which are pooled right away into three kinds of vectors, so nothing full-resolution is kept:
 
   obj    one vector per GT object: each axon (connected component of the native axon mask) and
@@ -122,25 +123,28 @@ def crop_box(h: int, w: int, max_pixels: int | None):
 class Pooler:
     """Area-weighted pooling of feature maps onto native-grid label maps.
 
-    Native pixel (y, x) falls in input pixel (floor(y * scale) - y0, floor(x * scale) - x0) of the
-    processed crop, and in feature cell (that // s) for a stage of stride s. Counting native pixels
+    Native pixel (y, x) falls in input pixel floor((y + 0.5) * sy) of the resampled image (pixel
+    centres, as skimage.resize maps them; sy = resampled / native size per axis), then in row
+    that - y0 + pad_top of the padded network input, and in feature cell (that // s) for a stage
+    of stride s. Counting native pixels
     per (label, cell) pair gives a sparse weight matrix A, and pooled = A F / A 1. The counts are
     built once at stride 1 and merged upwards (strides are powers of 2), so each stage costs a
     pass over the previous level's pairs, not over every native pixel.
     """
 
-    def __init__(self, labels: np.ndarray, n_labels: int, scale: float, box, device):
+    def __init__(self, labels: np.ndarray, n_labels: int, input_shape: tuple, box, pad: tuple, device):
         y0, y1, x0, x1 = box
         hv, wv = y1 - y0, x1 - x0
         h, w = labels.shape
-        iy = np.floor(np.arange(h) * scale).astype(np.int64) - y0   # native row -> crop input row
-        ix = np.floor(np.arange(w) * scale).astype(np.int64) - x0
+        sy, sx = input_shape[0] / h, input_shape[1] / w
+        iy = np.floor((np.arange(h) + 0.5) * sy).astype(np.int64) - y0   # native row -> crop row
+        ix = np.floor((np.arange(w) + 0.5) * sx).astype(np.int64) - x0
         ok_y, ok_x = (iy >= 0) & (iy < hv), (ix >= 0) & (ix < wv)
         lab = labels[ok_y][:, ok_x].ravel().astype(np.int64)
-        cy = np.broadcast_to(iy[ok_y][:, None], (ok_y.sum(), ok_x.sum())).ravel()
-        cx = np.broadcast_to(ix[ok_x][None, :], (ok_y.sum(), ok_x.sum())).ravel()
+        cy = np.broadcast_to(iy[ok_y][:, None] + pad[0], (ok_y.sum(), ok_x.sum())).ravel()
+        cx = np.broadcast_to(ix[ok_x][None, :] + pad[1], (ok_y.sum(), ok_x.sum())).ravel()
         m = lab > 0
-        self.n, self.device, self.scale, self.hw = n_labels, device, scale, (hv, wv)
+        self.n, self.device, self.area_scale = n_labels, device, sy * sx
         self.levels = {1: self._merge(lab[m] - 1, cy[m], cx[m], np.ones(m.sum(), np.int64), 1)}
 
         area = np.bincount(labels.ravel(), minlength=n_labels + 1)[1:]
@@ -175,7 +179,7 @@ class Pooler:
         summed = torch.sparse.mm(a, feat.reshape(c, -1).T.float())
         weight = np.bincount(rows, weights=counts, minlength=self.n).astype(np.float32)
         pooled = summed.cpu().numpy() / np.where(weight > 0, weight, np.nan)[:, None]
-        native_per_cell = (stride / self.scale) ** 2
+        native_per_cell = stride ** 2 / self.area_scale
         return pooled.astype(np.float16), (weight / native_per_cell).astype(np.float32)
 
 
@@ -226,7 +230,7 @@ def main():
     ap.add_argument("--original-px", type=float, default=0.00236, help="native pixel size (um/px)")
     ap.add_argument("--px-sizes", type=float, nargs="+", default=PX_SIZES, help="um/px")
     ap.add_argument("--grid-nm", type=float, default=200.0, help="cell size of the physical grid (nm)")
-    ap.add_argument("--max-input-pixels", type=int, default=6_000_000,
+    ap.add_argument("--max-input-pixels", type=int, default=10_000_000,
                     help="crop the input (centrally, after normalization) above this many pixels")
     ap.add_argument("--images", nargs="*", default=None, help="only these image stems")
     ap.add_argument("--max-images", type=int, default=None, help="first N images (quick tests)")
@@ -241,7 +245,8 @@ def main():
     total_stride = np.prod(predictor.configuration_manager.pool_op_kernel_sizes, axis=0).astype(int)
     assert total_stride[0] == total_stride[1], f"anisotropic pooling {total_stride} not supported"
     total_stride = int(total_stride[0])
-    print(f"Model {args.model_name}: {len(stages)} stages, total stride {total_stride}, labels {label_map}")
+    patch = [int(v) for v in predictor.configuration_manager.patch_size]
+    print(f"Model {args.model_name}: {len(stages)} stages, total stride {total_stride}, patch {patch}, labels {label_map}")
 
     captured = {}
     for name, mod in stages:
@@ -287,14 +292,19 @@ def main():
             y0, y1, x0, x1 = crop_box(*norm.shape, args.max_input_pixels)
             x = norm[y0:y1, x0:x1]
             hv, wv = x.shape
-            hp, wp = -(-hv // total_stride) * total_stride, -(-wv // total_stride) * total_stride
-            x = np.pad(x, ((0, hp - hv), (0, wp - wv)))  # zero = mean after z-score, as nnU-Net pads
+            # Pad like nnU-Net's predictor: at least the patch size, centred, zeros (= mean after
+            # z-score). InstanceNorm statistics include the padding, so for images smaller than the
+            # patch (>= 8 nm on TEM1) this has to match the eval, or the features differ.
+            hp = max(patch[0], -(-hv // total_stride) * total_stride)
+            wp = max(patch[1], -(-wv // total_stride) * total_stride)
+            pt, pl = (hp - hv) // 2, (wp - wv) // 2
+            x = np.pad(x, ((pt, hp - hv - pt), (pl, wp - wv - pl)))
             xt = torch.from_numpy(x)[None, None].to(device)
 
             captured.clear()
             with torch.no_grad(), torch.autocast(device.type, enabled=use_amp):
                 logits = net(xt)
-            seg = logits[0].argmax(0)[:hv, :wv].cpu().numpy().astype(np.uint8)
+            seg = logits[0].argmax(0)[pt:pt + hv, pl:pl + wv].cpu().numpy().astype(np.uint8)
 
             # Dice on the processed region, prediction resized to native as in results.csv
             ny0, ny1 = int(round(y0 / scale)), int(round(y1 / scale))
@@ -309,8 +319,8 @@ def main():
 
             box = (y0, y1, x0, x1)
             pool_dev = device if device.type == "cuda" else torch.device("cpu")  # no sparse mm on mps
-            obj_pool = Pooler(obj_labels, n_obj, scale, box, pool_dev)
-            grid_pool = Pooler(grid_labels, n_grid, scale, box, pool_dev)
+            obj_pool = Pooler(obj_labels, n_obj, img_px.shape, box, (pt, pl), pool_dev)
+            grid_pool = Pooler(grid_labels, n_grid, img_px.shape, box, (pt, pl), pool_dev)
             res["obj_frac"][pi], res["grid_frac"][pi] = obj_pool.frac, grid_pool.frac
             for sname, _ in stages:
                 feat = captured[sname][0].to(pool_dev)
@@ -319,8 +329,8 @@ def main():
                     pooled, cov = pool(feat, stride)
                     res.setdefault(f"{key}_{sname}", np.zeros((len(args.px_sizes), n, feat.shape[0]), np.float16))[pi] = pooled
                     res.setdefault(f"{key}_cov_{sname}", np.zeros((len(args.px_sizes), n), np.float32))[pi] = cov
-                vh, vw = -(-hv // stride), -(-wv // stride)
-                g = feat[:, :vh, :vw].float().mean((1, 2)).cpu().numpy()
+                g = feat[:, pt // stride:-(-(pt + hv) // stride), pl // stride:-(-(pl + wv) // stride)]
+                g = g.float().mean((1, 2)).cpu().numpy()
                 res.setdefault(f"global_{sname}", np.zeros((len(args.px_sizes), feat.shape[0]), np.float32))[pi] = g
                 res.setdefault(f"stride_{sname}", np.zeros(len(args.px_sizes), np.int32))[pi] = stride
             captured.clear()
