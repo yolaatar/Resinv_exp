@@ -13,6 +13,11 @@ Sources, all on the TEM1 test images:
 Axons touching the image border, and axons without a valid g-ratio (no myelin found), are excluded,
 as in AxonDeepSeg's own reports. The per-image g-ratio error is then |mean(pred) - mean(gt)|.
 
+--min-axon-diam-um drops axons with a smaller equivalent diameter, in every source alike. Chosen from
+the ground truth alone (2026-11-21): 0.15 um removes 1 of the 1038 manual test axons (smallest 0.095 um,
+1st percentile 0.24 um) but the one- to few-pixel specks that make up a third of the objects predicted
+at the native size (0.003-0.008 um), and still exceeds a single pixel at 50 nm (0.056 um).
+
 Needs AxonDeepSeg (tassan: ~/resinv_exp/venv_resinv, editable install of ~/axondeepseg). CPU only.
 
 Usage (tassan):
@@ -47,7 +52,7 @@ def px_tag(px_um: float) -> str:
     return f"px{px_um:.7g}um"
 
 
-def summarize(axon: np.ndarray, myelin: np.ndarray, px_um: float) -> dict:
+def summarize(axon: np.ndarray, myelin: np.ndarray, px_um: float, min_diam_um: float = 0.0) -> dict:
     """Mean morphometrics of the valid, non-border axons of one segmentation."""
     from AxonDeepSeg.morphometrics.compute_morphometrics import get_axon_morphometrics
 
@@ -60,6 +65,7 @@ def summarize(axon: np.ndarray, myelin: np.ndarray, px_um: float) -> dict:
         keep = stats["gratio"].notna() & np.isfinite(stats["gratio"])
         if "image_border_touching" in stats:
             keep &= ~stats["image_border_touching"].astype(bool)
+        keep &= stats["axon_diam"] >= min_diam_um
         stats = stats[keep]
     out = {"n_axons_all": n_all, "n_axons": len(stats)}
     for c in COLS:
@@ -68,13 +74,13 @@ def summarize(axon: np.ndarray, myelin: np.ndarray, px_um: float) -> dict:
 
 
 def one_image(args):
-    img_name, results_dir, data_dir, models, px_list = args
+    img_name, results_dir, data_dir, models, px_list, min_d = args
     subject = img_name.split("_")[0]
     base = data_dir / "derivatives" / "labels" / subject / "micr"
     gt = {lab: load_mask(base / f"{img_name}_seg-{lab}-manual.png") for lab in ("axon", "myelin")}
     gt["myelin"] &= ~gt["axon"]
     rows = [{"image": img_name, "subject": subject, "source": "gt", "px_nm": NATIVE_UM * 1000,
-             **summarize(gt["axon"], gt["myelin"], NATIVE_UM)}]
+             **summarize(gt["axon"], gt["myelin"], NATIVE_UM, min_d)}]
     shape = gt["axon"].shape
     for px_nm in px_list:
         px_um = px_nm / 1000
@@ -82,13 +88,13 @@ def one_image(args):
         size = (max(1, round(shape[0] * scale)), max(1, round(shape[1] * scale)))
         g = {k: resize(v, size, order=0, preserve_range=True, anti_aliasing=False) > 0 for k, v in gt.items()}
         rows.append({"image": img_name, "subject": subject, "source": "gt_resampled", "px_nm": px_nm,
-                     **summarize(g["axon"], g["myelin"], px_um)})
+                     **summarize(g["axon"], g["myelin"], px_um, min_d)})
         for m in models:
             d = results_dir / m / img_name / "predictions"
             p = {lab: load_mask(d / f"{img_name}_{px_tag(px_um)}_seg-{lab}.png") for lab in ("axon", "myelin")}
             p["myelin"] &= ~p["axon"]
             rows.append({"image": img_name, "subject": subject, "source": m, "px_nm": px_nm,
-                         **summarize(p["axon"], p["myelin"], px_um)})
+                         **summarize(p["axon"], p["myelin"], px_um, min_d)})
     print(f"done {img_name}", flush=True)
     return rows
 
@@ -101,6 +107,8 @@ def main():
     ap.add_argument("--models", nargs="+", required=True)
     ap.add_argument("--px-nm", type=float, nargs="+", default=[2.36, 4.93, 7, 10, 16, 21.3, 28.3])
     ap.add_argument("--max-images", type=int, default=None, help="first N images only (smoke test)")
+    ap.add_argument("--min-axon-diam-um", type=float, default=0.0,
+                    help="drop axons with a smaller equivalent diameter (0 keeps all)")
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
@@ -112,7 +120,7 @@ def main():
     if args.max_images:
         images = images[: args.max_images]
     print(f"{len(images)} images, models {args.models}, sizes {args.px_nm} nm", flush=True)
-    jobs = [(i, args.results_dir, args.data_dir, args.models, args.px_nm) for i in images]
+    jobs = [(i, args.results_dir, args.data_dir, args.models, args.px_nm, args.min_axon_diam_um) for i in images]
     with Pool(args.workers) as pool:
         rows = [r for rs in pool.imap_unordered(one_image, jobs) for r in rs]
     df = pd.DataFrame(rows).sort_values(["image", "source", "px_nm"])
