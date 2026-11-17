@@ -49,6 +49,12 @@ PX_GRID=(
     0.004 0.00459 0.00493 0.00606 0.007 0.008 0.00919 0.01 0.01213 0.01393 0.016
     0.0213 0.0283 0.0376 0.05
 )
+# DATASET=tem2: native test on TEM2 (acquired at 4.93 nm; the 21 annotated ROIs of 10 mice that no
+# model saw), at its native size and a short sweep from there. Every subject is a test subject.
+DATASET="${DATASET:-tem1}"
+if [ "${DATASET}" = tem2 ]; then
+    PX_GRID=(0.00236 0.00348 0.00493 0.007 0.01 0.016 0.0213)
+fi
 if [ -n "${PX_SIZES:-}" ]; then
     read -r -a PX_GRID <<< "${PX_SIZES}"
 fi
@@ -59,6 +65,11 @@ REPO_DIR="$(dirname "${TRAINING_DIR}")"
 BASE="${RESINV_PAPER_BASE:-${HOME}/resinv_exp/nnunet_paper}"
 RESULTS="${HOME}/resinv_exp/results_paper"
 TEM1_DIR="${HOME}/resinv_exp/data/TEM1"
+case "${DATASET}" in
+    tem1) DATA_DIR="${TEM1_DIR}"; SPLIT_ARGS=(--split-file "${TEM1_DIR}/subject_split.json"); NATIVE_PX=0.00236 ;;
+    tem2) DATA_DIR="${HOME}/resinv_exp/data/testset_armand_uaxon"; SPLIT_ARGS=(); NATIVE_PX=0.00493 ;;
+    *) echo "Unknown DATASET ${DATASET} (tem1 or tem2)"; exit 1 ;;
+esac
 # shellcheck disable=SC1091
 source "${RESINV_VENV:-${HOME}/resinv_exp/venv_resinv_v2}/bin/activate"
 
@@ -83,7 +94,7 @@ elif [ -n "${CANONICAL_PX_ERROR:-}" ]; then
     echo "CANONICAL_PX_ERROR needs CANONICAL_PX"; exit 1
 fi
 NAME="${LABEL}_f${FOLD}${SUFFIX}"
-OUT="${RESULTS}/tem1"
+OUT="${RESULTS}/${DATASET}"
 TIMING_ARGS=()
 if [ -n "${TIMING_IMAGES:-}" ]; then
     OUT="${RESULTS}/timing"
@@ -91,11 +102,11 @@ if [ -n "${TIMING_IMAGES:-}" ]; then
 fi
 mkdir -p "${OUT}" "${BASE}/logs"
 
-echo "=== ${NAME}: TEM1 test set, ${#PX_GRID[@]} pixel sizes, ${CHECKPOINT}${CANONICAL_PX:+, canonical resampling to ${CANONICAL_PX} um/px} ==="
+echo "=== ${NAME}: ${DATASET} test set, ${#PX_GRID[@]} pixel sizes, ${CHECKPOINT}${CANONICAL_PX:+, canonical resampling to ${CANONICAL_PX} um/px} ==="
 CUDA_VISIBLE_DEVICES="${GPU}" python "${TRAINING_DIR}/evaluate_nnunet.py" \
     --model-dir "${MODEL_DIR}" --model-name "${NAME}" \
-    --data-dir "${TEM1_DIR}" --split-file "${TEM1_DIR}/subject_split.json" \
-    --original-px 0.00236 --px-sizes "${PX_GRID[@]}" \
+    --data-dir "${DATA_DIR}" ${SPLIT_ARGS[@]+"${SPLIT_ARGS[@]}"} \
+    --original-px "${NATIVE_PX}" --px-sizes "${PX_GRID[@]}" \
     --fold "${FOLD}" --checkpoint "${CHECKPOINT}" ${CANON_ARGS[@]+"${CANON_ARGS[@]}"} \
     ${TIMING_ARGS[@]+"${TIMING_ARGS[@]}"} \
     --output-dir "${OUT}" --gpu-id 0 2>&1 | tee "${BASE}/logs/eval_${NAME}_$(basename "${OUT}").log"
@@ -106,8 +117,8 @@ if [ -n "${TIMING_IMAGES:-}" ]; then
 fi
 
 echo "=== ${NAME}: MONAI Dice vs GT ==="
-# TEM1 labels axon and myelin only (its unmyelinated axons are unannotated).
-python "${REPO_DIR}/recompute_metrics.py" --results-dir "${RESULTS}/tem1" \
-    --data-dir "${TEM1_DIR}" --models "${NAME}" --gt-only --gt-labels axon myelin
+# Axon and myelin only: TEM1 does not annotate unmyelinated axons, and the models are trained on TEM1.
+python "${REPO_DIR}/recompute_metrics.py" --results-dir "${OUT}" \
+    --data-dir "${DATA_DIR}" --models "${NAME}" --gt-only --gt-labels axon myelin
 
-echo "Results: ${RESULTS}/tem1/${NAME}/results.csv"
+echo "Results: ${OUT}/${NAME}/results.csv"
