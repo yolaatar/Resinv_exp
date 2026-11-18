@@ -11,6 +11,9 @@
 #   before inference and the prediction mapped back, i.e. the usual fallback for a model trained
 #   at one pixel size. Results go to <model>_canonical_f<fold>, scored exactly like the others.
 #
+#   CANONICAL_TAG=_to236 (with CANONICAL_PX): suffix for the result name, so that canonical runs of the
+#   same model with different targets do not overwrite each other (multires_canonical_to236_f0).
+#
 #   CANONICAL_PX_ERROR=k (with CANONICAL_PX): canonical resampling is told a pixel size k times
 #   the true one, i.e. wrong metadata. Results go to <model>_canonical_err<k>_f<fold>.
 #
@@ -84,7 +87,7 @@ SUFFIX=""
 LABEL="${MODEL_KEY}"
 CANON_ARGS=()
 if [ -n "${CANONICAL_PX:-}" ]; then
-    LABEL="${MODEL_KEY}_canonical"
+    LABEL="${MODEL_KEY}_canonical${CANONICAL_TAG:-}"   # CANONICAL_TAG: e.g. _to236, keeps runs with different targets apart
     CANON_ARGS=(--canonical-px "${CANONICAL_PX}")
     if [ -n "${CANONICAL_PX_ERROR:-}" ]; then
         LABEL="${LABEL}_err${CANONICAL_PX_ERROR}"
