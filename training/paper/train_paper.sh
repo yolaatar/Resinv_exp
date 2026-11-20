@@ -39,6 +39,7 @@ REF_ID=102
 REF_NAME="Dataset102_TEM1_multires4"
 PLANS_DEFAULT="nnUNetPlans_ref102"
 PLANS_RESENC="nnUNetResEncMPlans_ref102"
+PLANS_P2X="nnUNetPlans_ref102_p2x"   # same network as PLANS_DEFAULT, patch 2x wider per side (1536 x 2304)
 
 # ---------------------------------------------------------------------------
 # Model registry: key -> dataset id, dataset name, source, extra pixel sizes (um/px),
@@ -71,6 +72,9 @@ lookup_model() {
         # objects larger than native; native written twice so a third of the patches stay native. The range
         # rule predicts the fine edge of the band near 1.18 / 1.36 = 0.87 nm (control: 2.36 / 1.36 = 1.74).
         multires_fine)  DS_ID=110; DS_NAME=Dataset110_TEM1_multires_fine; EXTRA="0.00118 0.007 0.01 0.016"; NATIVE_COPIES=2 ;;
+        # Same data, patch 2x wider per side (4x the pixels): at 1.18 nm a patch then covers 1.8 x 2.7 um,
+        # the field of view native images get with the default patch. Same network and batch size.
+        multires_fine_p2x) DS_ID=110; DS_NAME=Dataset110_TEM1_multires_fine; EXTRA="0.00118 0.007 0.01 0.016"; NATIVE_COPIES=2; PLANS_KIND=p2x ;;
         # Batch 3: architecture check (ResEnc M), same data as batch 1
         control_resenc)  DS_ID=101; DS_NAME=Dataset101_TEM1_control;   EXTRA="";  PLANS_KIND=resenc ;;
         multires_resenc) DS_ID=102; DS_NAME=Dataset102_TEM1_multires4; EXTRA="0.007 0.01 0.016"; PLANS_KIND=resenc ;;
@@ -86,10 +90,14 @@ lookup_model() {
     else
         DATA_DIR="${TEM2_DIR}"; ORIGINAL_PX=0.00493; SPLIT_FILE="${TEM2_DIR}/subject_split_paper.json"
     fi
-    if [ "${PLANS_KIND}" = resenc ]; then PLANS="${PLANS_RESENC}"; else PLANS="${PLANS_DEFAULT}"; fi
+    case "${PLANS_KIND}" in
+        resenc) PLANS="${PLANS_RESENC}" ;;
+        p2x) PLANS="${PLANS_P2X}" ;;
+        *) PLANS="${PLANS_DEFAULT}" ;;
+    esac
 }
 
-ALL_KEYS="control multires da5 da5_multires scaleaug scaleaug_p05 multires2 multires8 multires_to7 multires_gap7 multires_gap10 multires_to10 multires_native3 multires_fine control_resenc multires_resenc control_tem2 multires_tem2"
+ALL_KEYS="control multires da5 da5_multires scaleaug scaleaug_p05 multires2 multires8 multires_to7 multires_gap7 multires_gap10 multires_to10 multires_native3 multires_fine multires_fine_p2x control_resenc multires_resenc control_tem2 multires_tem2"
 
 if [ "${1:-}" = "--list" ]; then
     printf "%-16s %-30s %-30s %-26s %-18s %s\n" KEY DATASET TRAINER PLANS LABELS EXTRA_PX
@@ -164,6 +172,22 @@ plan_reference() {  # plans the reference dataset once per plans kind
         nnUNetv2_plan_and_preprocess -d "${REF_ID}" -c 2d --verify_dataset_integrity \
             -overwrite_plans_name "${PLANS_DEFAULT}" 2>&1 | tee -a "${LOG}"
         echo $((SECONDS - t0)) > "${marker}"
+    fi
+    if [ "${PLANS_KIND}" = p2x ] && [ ! -f "${nnUNet_preprocessed}/${REF_NAME}/${PLANS_P2X}.json" ]; then
+        # Derived from the reference plans, not re-planned: only the patch size and the names change,
+        # so the network is identical to every other model's.
+        python - "${nnUNet_preprocessed}/${REF_NAME}/${PLANS_DEFAULT}.json" "${nnUNet_preprocessed}/${REF_NAME}/${PLANS_P2X}.json" "${PLANS_P2X}" <<'PYEOF'
+import json, sys
+src, dst, name = sys.argv[1:4]
+p = json.load(open(src))
+p["plans_name"] = name
+c = p["configurations"]["2d"]
+c["patch_size"] = [2 * v for v in c["patch_size"]]
+c["data_identifier"] = f"{name}_2d"
+json.dump(p, open(dst, "w"), indent=4)
+print("patch", c["patch_size"], "batch", c["batch_size"])
+PYEOF
+        log "Derived ${PLANS_P2X} from ${PLANS_DEFAULT} (patch 2x per side)"
     fi
     if [ "${PLANS_KIND}" = resenc ]; then
         local rmarker="${nnUNet_preprocessed}/${REF_NAME}/.done_${PLANS_RESENC}"
