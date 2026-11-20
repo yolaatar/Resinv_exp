@@ -39,7 +39,7 @@ REF_ID=102
 REF_NAME="Dataset102_TEM1_multires4"
 PLANS_DEFAULT="nnUNetPlans_ref102"
 PLANS_RESENC="nnUNetResEncMPlans_ref102"
-PLANS_P2X="nnUNetPlans_ref102_p2x"   # same network as PLANS_DEFAULT, patch 2x wider per side (1536 x 2304)
+PLANS_P2X="nnUNetPlans_ref102_p2x"   # same network as PLANS_DEFAULT, patch 2x wider per side (1536 x 2304), batch 2
 
 # ---------------------------------------------------------------------------
 # Model registry: key -> dataset id, dataset name, source, extra pixel sizes (um/px),
@@ -73,7 +73,7 @@ lookup_model() {
         # rule predicts the fine edge of the band near 1.18 / 1.36 = 0.87 nm (control: 2.36 / 1.36 = 1.74).
         multires_fine)  DS_ID=110; DS_NAME=Dataset110_TEM1_multires_fine; EXTRA="0.00118 0.007 0.01 0.016"; NATIVE_COPIES=2 ;;
         # Same data, patch 2x wider per side (4x the pixels): at 1.18 nm a patch then covers 1.8 x 2.7 um,
-        # the field of view native images get with the default patch. Same network and batch size.
+        # the field of view native images get with the default patch. Same network, batch size 2.
         multires_fine_p2x) DS_ID=110; DS_NAME=Dataset110_TEM1_multires_fine; EXTRA="0.00118 0.007 0.01 0.016"; NATIVE_COPIES=2; PLANS_KIND=p2x ;;
         # Batch 3: architecture check (ResEnc M), same data as batch 1
         control_resenc)  DS_ID=101; DS_NAME=Dataset101_TEM1_control;   EXTRA="";  PLANS_KIND=resenc ;;
@@ -184,6 +184,9 @@ p["plans_name"] = name
 c = p["configurations"]["2d"]
 c["patch_size"] = [2 * v for v in c["patch_size"]]
 c["data_identifier"] = f"{name}_2d"
+# Batch 2 (11-20): 4x the pixels per patch at batch 4 would take ~22 h per fold; at batch 2 each
+# iteration still covers twice the image area of the default runs, in ~11 h.
+c["batch_size"] = 2
 json.dump(p, open(dst, "w"), indent=4)
 print("patch", c["patch_size"], "batch", c["batch_size"])
 PYEOF
