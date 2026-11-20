@@ -67,6 +67,10 @@ lookup_model() {
         multires_gap10)   DS_ID=107; DS_NAME=Dataset107_TEM1_gap10;    EXTRA="0.01" ;;
         multires_to10)    DS_ID=108; DS_NAME=Dataset108_TEM1_multires_to10; EXTRA="0.003819 0.006179 0.01" ;;
         multires_native3) DS_ID=109; DS_NAME=Dataset109_TEM1_multires4_native3; EXTRA="0.007 0.01 0.016"; NATIVE_COPIES=3 ;;
+        # Fine side (11-20): multires4 plus an upsampled copy at 1.18 nm (x2 of native), so the model sees
+        # objects larger than native; native written twice so a third of the patches stay native. The range
+        # rule predicts the fine edge of the band near 1.18 / 1.36 = 0.87 nm (control: 2.36 / 1.36 = 1.74).
+        multires_fine)  DS_ID=110; DS_NAME=Dataset110_TEM1_multires_fine; EXTRA="0.00118 0.007 0.01 0.016"; NATIVE_COPIES=2 ;;
         # Batch 3: architecture check (ResEnc M), same data as batch 1
         control_resenc)  DS_ID=101; DS_NAME=Dataset101_TEM1_control;   EXTRA="";  PLANS_KIND=resenc ;;
         multires_resenc) DS_ID=102; DS_NAME=Dataset102_TEM1_multires4; EXTRA="0.007 0.01 0.016"; PLANS_KIND=resenc ;;
@@ -85,7 +89,7 @@ lookup_model() {
     if [ "${PLANS_KIND}" = resenc ]; then PLANS="${PLANS_RESENC}"; else PLANS="${PLANS_DEFAULT}"; fi
 }
 
-ALL_KEYS="control multires da5 da5_multires scaleaug scaleaug_p05 multires2 multires8 multires_to7 multires_gap7 multires_gap10 multires_to10 multires_native3 control_resenc multires_resenc control_tem2 multires_tem2"
+ALL_KEYS="control multires da5 da5_multires scaleaug scaleaug_p05 multires2 multires8 multires_to7 multires_gap7 multires_gap10 multires_to10 multires_native3 multires_fine control_resenc multires_resenc control_tem2 multires_tem2"
 
 if [ "${1:-}" = "--list" ]; then
     printf "%-16s %-30s %-30s %-26s %-18s %s\n" KEY DATASET TRAINER PLANS LABELS EXTRA_PX

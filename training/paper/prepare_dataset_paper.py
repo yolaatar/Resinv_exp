@@ -13,7 +13,9 @@ Each training image is kept at its native pixel size, plus one downsampled copy 
 pixel size (e.g. ..._px0p007um), which generate_splits_shared.py relies on to keep all copies
 of one source image on the same side of the train/val split.
 
-Only downsampling is supported: every --extra-px must be coarser than --original-px.
+--extra-px finer than --original-px (e.g. 0.00118 for TEM1) adds an upsampled copy (bicubic, no
+anti-aliasing, as the evaluation resamples fine sizes; labels nearest-neighbour). It only shows the model
+larger objects, no new image content: meant for the fine side of the sweep.
 
 --native-copies N writes the native-resolution case N times (IDs ..._rep2, ..._rep3), so nnUNet,
 which samples cases uniformly, draws native patches N times as often. With N = 3 and three extra
@@ -78,9 +80,10 @@ def make_multiclass_label(mask_paths: list[Path], h: int, w: int) -> np.ndarray:
 
 
 def downsample_image(img: np.ndarray, scale: float) -> np.ndarray:
+    """Resample by scale (< 1 down, > 1 up); anti-aliasing only when downsampling, as in evaluation."""
     new_h = max(1, round(img.shape[0] * scale))
     new_w = max(1, round(img.shape[1] * scale))
-    out = resize(img, (new_h, new_w), order=3, preserve_range=True, anti_aliasing=True)
+    out = resize(img, (new_h, new_w), order=3, preserve_range=True, anti_aliasing=scale < 1)
     return out.astype(np.uint8)
 
 
@@ -123,9 +126,9 @@ def main():
 
     if not args.dataset_name.startswith(f"Dataset{args.dataset_id:03d}_"):
         parser.error(f"--dataset-name must start with Dataset{args.dataset_id:03d}_")
-    bad = [px for px in args.extra_px if px <= args.original_px]
+    bad = [px for px in args.extra_px if abs(px - args.original_px) < 1e-9]
     if bad:
-        parser.error(f"--extra-px must all be coarser than --original-px ({args.original_px}): {bad}")
+        parser.error(f"--extra-px must differ from --original-px ({args.original_px}): {bad}")
 
     dataset_dir = args.nnunet_raw / args.dataset_name
     images_tr = dataset_dir / "imagesTr"
