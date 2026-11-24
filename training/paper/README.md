@@ -24,6 +24,7 @@ the training data or trainer, not from how each model happened to be set up.
 | 1 | control, multires | TEM1 2.36 / + 7, 10, 16 nm | stock | Core comparison, folds 0-4 (10 runs, ~57 h on one GPU) |
 | (not retrained) | da5, da5_multires | same | nnUNetTrainerDA5 | Blur vs scale. The paper reuses the earlier nnUNet 2.2.1 DA5 results; keys kept for reference |
 | 2 | scaleaug | TEM1 2.36 nm | ScaleAug2p5 (online zoom to 1/2.5) | Does the robust band follow the scales seen in training? |
+| reviewer | scaleaug_wide | TEM1 2.36 nm | ScaleAugLogWide (online zoom, log-uniform 0.5 to 6.78, every patch, crop capped at 2 x image - patch = 3804 x 6372) | Is widening nnUNet's own scale augmentation enough, or do the offline copies matter? |
 | 2 | multires2 / multires8 | + 16 nm / + 7 log-spaced sizes to 16 nm | stock | Same coverage, sparser / denser |
 | 2 | multires_to7 | + 3.4, 4.9, 7 nm | stock | Same count as multires4, half the coverage |
 | 3 | control_resenc, multires_resenc | batch 1 data | stock, ResEnc M plans | Does the effect hold for a residual encoder? |

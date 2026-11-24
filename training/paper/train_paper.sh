@@ -57,6 +57,8 @@ lookup_model() {
         # Same count as multires4, half the coverage: multires_to7.
         scaleaug)       DS_ID=101; DS_NAME=Dataset101_TEM1_control;   EXTRA="";  TRAINER=nnUNetTrainerScaleAug2p5 ;;
         scaleaug_p05)   DS_ID=101; DS_NAME=Dataset101_TEM1_control;   EXTRA="";  TRAINER=nnUNetTrainerScaleAug2p5_p05 ;;
+        # Reviewer baseline (11-24): continuous scale augmentation over the multires_fine range (1.18 to 16 nm), every patch.
+        scaleaug_wide)  DS_ID=101; DS_NAME=Dataset101_TEM1_control;   EXTRA="";  TRAINER=nnUNetTrainerScaleAugLogWide ;;
         multires2)      DS_ID=103; DS_NAME=Dataset103_TEM1_multires2; EXTRA="0.016" ;;
         multires8)      DS_ID=104; DS_NAME=Dataset104_TEM1_multires8; EXTRA="0.003102 0.004078 0.00536 0.007045 0.00926 0.01217 0.016" ;;
         multires_to7)   DS_ID=105; DS_NAME=Dataset105_TEM1_multires_to7; EXTRA="0.003391 0.004872 0.007" ;;
@@ -97,7 +99,7 @@ lookup_model() {
     esac
 }
 
-ALL_KEYS="control multires da5 da5_multires scaleaug scaleaug_p05 multires2 multires8 multires_to7 multires_gap7 multires_gap10 multires_to10 multires_native3 multires_fine multires_fine_p2x control_resenc multires_resenc control_tem2 multires_tem2"
+ALL_KEYS="control multires da5 da5_multires scaleaug scaleaug_p05 scaleaug_wide multires2 multires8 multires_to7 multires_gap7 multires_gap10 multires_to10 multires_native3 multires_fine multires_fine_p2x control_resenc multires_resenc control_tem2 multires_tem2"
 
 if [ "${1:-}" = "--list" ]; then
     printf "%-16s %-30s %-30s %-26s %-18s %s\n" KEY DATASET TRAINER PLANS LABELS EXTRA_PX

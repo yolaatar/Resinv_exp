@@ -28,7 +28,7 @@ import os
 import nnunetv2
 from nnunetv2.utilities.find_class_by_name import recursive_find_python_class
 root = os.path.join(os.path.dirname(nnunetv2.__file__), "training", "nnUNetTrainer")
-for name in ["nnUNetTrainerScaleAug2p5", "nnUNetTrainerScaleAug2p5_p05", "nnUNetTrainerDA5"]:
+for name in ["nnUNetTrainerScaleAug2p5", "nnUNetTrainerScaleAug2p5_p05", "nnUNetTrainerScaleAugLogWide", "nnUNetTrainerDA5"]:
     cls = recursive_find_python_class(root, name, "nnunetv2.training.nnUNetTrainer")
     assert cls is not None, f"nnUNet cannot find {name}"
     print(f"  OK {name} -> {cls.__module__}")
