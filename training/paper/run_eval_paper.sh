@@ -55,7 +55,8 @@ PX_GRID=(
 # DATASET=tem2: native test on TEM2 (acquired at 4.93 nm; the 21 annotated ROIs of 10 mice that no
 # model saw), at its native size and a short sweep from there. Every subject is a test subject.
 DATASET="${DATASET:-tem1}"
-if [ "${DATASET}" = tem2 ]; then
+# DATASET=tem2release: the 10 annotated images of the TEM2 release itself (DANDI 001350), same grid.
+if [ "${DATASET}" = tem2 ] || [ "${DATASET}" = tem2release ]; then
     PX_GRID=(0.00236 0.00348 0.00493 0.007 0.01 0.016 0.0213)
 fi
 if [ -n "${PX_SIZES:-}" ]; then
@@ -71,7 +72,8 @@ TEM1_DIR="${HOME}/resinv_exp/data/TEM1"
 case "${DATASET}" in
     tem1) DATA_DIR="${TEM1_DIR}"; SPLIT_ARGS=(--split-file "${TEM1_DIR}/subject_split.json"); NATIVE_PX=0.00236 ;;
     tem2) DATA_DIR="${HOME}/resinv_exp/data/testset_armand_uaxon"; SPLIT_ARGS=(); NATIVE_PX=0.00493 ;;
-    *) echo "Unknown DATASET ${DATASET} (tem1 or tem2)"; exit 1 ;;
+    tem2release) DATA_DIR="${HOME}/resinv_exp/data/tem2_release_gt"; SPLIT_ARGS=(); NATIVE_PX=0.00493 ;;
+    *) echo "Unknown DATASET ${DATASET} (tem1, tem2 or tem2release)"; exit 1 ;;
 esac
 # shellcheck disable=SC1091
 source "${RESINV_VENV:-${HOME}/resinv_exp/venv_resinv_v2}/bin/activate"
